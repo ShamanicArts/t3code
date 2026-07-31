@@ -27,3 +27,11 @@
 - Exclude automations belonging to soft-deleted projects from due-run claims.
 - Document that deletion is blocked while a run is queued or running.
 - Focused verification: 11 files and 52 tests passed; affected formatting, lint, and client/shared type checks pass. Server type checking remains blocked only by the pre-existing `localDesktopAttach` missing-`Path` context error.
+
+## 2026-07-31 — Realtime voice recovery regression fix
+
+- Added the two realtime voice orchestration events to the exhaustive projection routing table as cursor-only events, restoring server type safety without inventing materialized projection work.
+- Recognized Codex app-server's actual `no rollout found for thread id ...` response as a recoverable stale-thread resume failure so voice setup can create a replacement provider thread instead of failing permanently.
+- Updated focused regression expectations for both behaviors.
+- Targeted formatting, lint, and `git diff --check` pass. Server type checking now reaches only the existing automation `preferSchemaOverJson` diagnostic in `AutomationStore.test.ts`; the current Vite+ runner remains unable to collect focused suites because `runner.config` is undefined.
+- Remaining investigation: determine why an automation run could not request screenshots and why installed-app copy CTAs fail.
