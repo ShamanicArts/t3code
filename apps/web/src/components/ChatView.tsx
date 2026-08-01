@@ -1165,6 +1165,7 @@ function ChatViewContent(props: ChatViewProps) {
     reportFailure: false,
   });
   const startThreadTurn = useAtomCommand(threadEnvironment.startTurn, { reportFailure: false });
+  const steerThreadTurn = useAtomCommand(threadEnvironment.steerTurn, { reportFailure: false });
   const interruptThreadTurn = useAtomCommand(threadEnvironment.interruptTurn, {
     reportFailure: false,
   });
@@ -4798,24 +4799,39 @@ function ChatViewContent(props: ChatViewProps) {
             }
           : undefined;
       beginLocalDispatch({ preparingWorktree: false });
-      const startResult = await startThreadTurn({
-        environmentId,
-        input: {
-          threadId: threadIdForSend,
-          message: {
-            messageId: messageIdForSend,
-            role: "user",
-            text: outgoingMessageText,
-            attachments: turnAttachmentsResult.value,
-          },
-          modelSelection: ctxSelectedModelSelection,
-          titleSeed: title,
-          runtimeMode,
-          interactionMode,
-          ...(bootstrap ? { bootstrap } : {}),
-          createdAt: messageCreatedAt,
-        },
-      });
+      const message = {
+        messageId: messageIdForSend,
+        role: "user" as const,
+        text: outgoingMessageText,
+        attachments: turnAttachmentsResult.value,
+      };
+      const activeTurnIdForSteer =
+        isServerThread && activeThread.session?.status === "running"
+          ? activeThread.session.activeTurnId
+          : null;
+      const startResult = activeTurnIdForSteer
+        ? await steerThreadTurn({
+            environmentId,
+            input: {
+              threadId: threadIdForSend,
+              expectedTurnId: activeTurnIdForSteer,
+              message,
+              createdAt: messageCreatedAt,
+            },
+          })
+        : await startThreadTurn({
+            environmentId,
+            input: {
+              threadId: threadIdForSend,
+              message,
+              modelSelection: ctxSelectedModelSelection,
+              titleSeed: title,
+              runtimeMode,
+              interactionMode,
+              ...(bootstrap ? { bootstrap } : {}),
+              createdAt: messageCreatedAt,
+            },
+          });
       if (startResult._tag === "Failure") {
         failure = startResult;
       } else {
