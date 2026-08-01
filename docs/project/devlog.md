@@ -35,3 +35,11 @@
 - Updated focused regression expectations for both behaviors.
 - Targeted formatting, lint, and `git diff --check` pass. Server type checking now reaches only the existing automation `preferSchemaOverJson` diagnostic in `AutomationStore.test.ts`; the current Vite+ runner remains unable to collect focused suites because `runner.config` is undefined.
 - Remaining investigation: determine why an automation run could not request screenshots and why installed-app copy CTAs fail.
+
+## 2026-08-01 — Desktop remote-auth and preview checkpoint
+
+- Kept desktop backends loopback-bound behind configured HTTPS proxies while explicitly enabling the remote-reachable authentication policy and advertising the proxy as the preferred endpoint.
+- Preserved user-configured HTTPS pairing links on their advertised backend instead of rewriting them through the hosted app.
+- Hardened background preview screenshots with compositor keepalive flags and a bounded automation timeout.
+- Preserved actionable Codex version errors during voice model selection while continuing to redact unrelated provider failures.
+- Remaining work: publish the separate external image-view capability fix upstream; these desktop/auth, preview, and voice changes remain local.

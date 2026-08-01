@@ -387,6 +387,7 @@ const resolvePrimaryStartConfig = Effect.fn("desktop.backendConfiguration.resolv
       port: backendExposure.port,
       shuv2codeHome: environment.baseDir,
       host: backendExposure.bindHost,
+      ...(backendExposure.remoteAccessEnabled ? { remoteAccessEnabled: true } : {}),
       desktopBootstrapToken: input.bootstrapToken,
       tailscaleServeEnabled: backendExposure.tailscaleServeEnabled,
       tailscaleServePort: backendExposure.tailscaleServePort,

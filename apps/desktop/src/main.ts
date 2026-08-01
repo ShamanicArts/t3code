@@ -65,6 +65,11 @@ import * as DesktopWslEnvironment from "./wsl/DesktopWslEnvironment.ts";
 // before app.whenReady() and before any renderer session is created.
 ElectronProtocol.registerDesktopSchemesAsPrivileged();
 
+// backgroundThrottling=false keeps renderer work alive, but Chromium can still
+// suspend the compositor for an occluded desktop window. Preview screenshot
+// automation needs that compositor surface even when shuv2code is not focused.
+Electron.app.commandLine.appendSwitch("disable-backgrounding-occluded-windows");
+
 const desktopEnvironmentLayer = Layer.unwrap(
   Effect.gen(function* () {
     const metadata = yield* Effect.service(ElectronApp.ElectronApp).pipe(

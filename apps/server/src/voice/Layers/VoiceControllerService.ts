@@ -150,6 +150,19 @@ const mapVoiceCatalogError = (error: VoiceRuntimeGatewayError) => {
   }
 };
 
+export const mapVoiceModelSelectionError = (error: VoiceRuntimeGatewayError) => {
+  switch (error.code) {
+    case "incompatible_version":
+      return voiceError(error.code, error.message, false);
+    default:
+      return voiceError(
+        "internal_error",
+        "No compatible model is available on the provider.",
+        false,
+      );
+  }
+};
+
 function controllerIdentity(binding: {
   readonly controllerThreadId: ThreadId;
   readonly hostProjectId: VoiceControllerIdentity["hostProjectId"];
@@ -633,11 +646,7 @@ export const makeVoiceControllerService = Effect.fn("VoiceControllerService.make
           : undefined;
     const modelSelection = yield* runtime
       .resolveModelSelection(input.providerInstanceId, preferred)
-      .pipe(
-        Effect.mapError(
-          mapInternalError("internal_error", "No compatible model is available on the provider."),
-        ),
-      );
+      .pipe(Effect.mapError(mapVoiceModelSelectionError));
     const existing = yield* bindings
       .getByEnvironmentId(environmentId)
       .pipe(

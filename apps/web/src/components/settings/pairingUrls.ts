@@ -1,3 +1,5 @@
+import type { AdvertisedEndpoint } from "@shuv2code/contracts";
+
 import { buildHostedPairingUrl } from "../../hostedPairing";
 import { setPairingTokenOnUrl } from "../../pairingUrl";
 
@@ -17,4 +19,20 @@ export function resolveHostedPairingUrl(endpointUrl: string, credential: string)
     host: endpointUrl,
     token: credential,
   });
+}
+
+export function resolveAdvertisedEndpointPairingUrl(
+  endpoint: AdvertisedEndpoint,
+  credential: string,
+): string {
+  if (endpoint.source === "user") {
+    return resolveDesktopPairingUrl(endpoint.httpBaseUrl, credential);
+  }
+  if (endpoint.compatibility.hostedHttpsApp === "compatible") {
+    return (
+      resolveHostedPairingUrl(endpoint.httpBaseUrl, credential) ??
+      resolveDesktopPairingUrl(endpoint.httpBaseUrl, credential)
+    );
+  }
+  return resolveDesktopPairingUrl(endpoint.httpBaseUrl, credential);
 }

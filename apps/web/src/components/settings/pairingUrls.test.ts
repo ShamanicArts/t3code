@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { resolveDesktopPairingUrl, resolveHostedPairingUrl } from "./pairingUrls";
+import type { AdvertisedEndpoint } from "@shuv2code/contracts";
+
+import {
+  resolveAdvertisedEndpointPairingUrl,
+  resolveDesktopPairingUrl,
+  resolveHostedPairingUrl,
+} from "./pairingUrls";
 
 describe("settings pairing URL helpers", () => {
   afterEach(() => {
@@ -26,5 +32,18 @@ describe("settings pairing URL helpers", () => {
     expect(
       resolveHostedPairingUrl("https://host.tailnet.example.ts.net:3773", "PAIRCODE"),
     ).toBeNull();
+  });
+
+  it("keeps user-configured HTTPS pairing links on the advertised backend", () => {
+    vi.stubEnv("VITE_HOSTED_APP_URL", "https://preview.shuv2code.example");
+    const endpoint = {
+      source: "user",
+      httpBaseUrl: "https://code.example.test/",
+      compatibility: { hostedHttpsApp: "compatible" },
+    } as AdvertisedEndpoint;
+
+    expect(resolveAdvertisedEndpointPairingUrl(endpoint, "PAIRCODE")).toBe(
+      "https://code.example.test/pair#token=PAIRCODE",
+    );
   });
 });

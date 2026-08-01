@@ -308,7 +308,55 @@ describe("PreviewManager", () => {
           width: 640,
           height: 360,
         });
-        expect(capturePage).toHaveBeenCalledOnce();
+        expect(capturePage).toHaveBeenCalledWith(undefined, {
+          stayHidden: true,
+          stayAwake: true,
+        });
+      }),
+    ),
+  );
+
+  effectIt.effect("releases a stalled automation screenshot after its local deadline", () =>
+    withManager((manager) =>
+      Effect.gen(function* () {
+        const capturePage = vi.fn(() => new Promise<TestCapturedPreviewImage>(() => undefined));
+        const webview = makeTestPreviewWebContents(capturePage, 42, async (method) => {
+          if (method === "Runtime.evaluate") {
+            return {
+              result: {
+                value: {
+                  url: "https://example.com",
+                  title: "Example",
+                  loading: false,
+                  visibleText: "Example",
+                  interactiveElements: [],
+                },
+              },
+            };
+          }
+          if (method === "Accessibility.getFullAXTree") return { nodes: [] };
+          return undefined;
+        });
+        fromId.mockReturnValue(webview);
+
+        yield* manager.createTab("tab_stalled_snapshot");
+        yield* manager.registerWebview("tab_stalled_snapshot", 42);
+
+        const fiber = yield* manager
+          .automationSnapshot("tab_stalled_snapshot", { includeScreenshot: true })
+          .pipe(Effect.forkChild({ startImmediately: true }));
+        yield* TestClock.adjust("10 seconds");
+        const exit = yield* Fiber.await(fiber);
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isSuccess(exit)) return;
+        const error = Option.getOrThrow(Cause.findErrorOption(exit.cause));
+
+        expect(error).toBeInstanceOf(PreviewManager.PreviewAutomationTimeoutError);
+        expect(error).toMatchObject({ tabId: "tab_stalled_snapshot", timeoutMs: 10_000 });
+        expect(capturePage).toHaveBeenCalledWith(undefined, {
+          stayHidden: true,
+          stayAwake: true,
+        });
       }),
     ),
   );

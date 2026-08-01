@@ -40,7 +40,11 @@ import * as Option from "effect/Option";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { cn } from "../../lib/utils";
 import { formatElapsedDurationLabel, formatExpiresInLabel } from "../../timestampFormat";
-import { resolveDesktopPairingUrl, resolveHostedPairingUrl } from "./pairingUrls";
+import {
+  resolveAdvertisedEndpointPairingUrl,
+  resolveDesktopPairingUrl,
+  resolveHostedPairingUrl,
+} from "./pairingUrls";
 import { applyWslEnableSelection } from "./ConnectionsSettings.logic";
 import {
   SettingsPageContainer,
@@ -474,19 +478,6 @@ function endpointDefaultPreferenceKey(endpoint: AdvertisedEndpoint): string {
   }
 
   return `${endpoint.provider.id}:${endpoint.reachability}:${scheme}:${endpoint.label}`;
-}
-
-function resolveAdvertisedEndpointPairingUrl(
-  endpoint: AdvertisedEndpoint,
-  credential: string,
-): string {
-  if (endpoint.compatibility.hostedHttpsApp === "compatible") {
-    return (
-      resolveHostedPairingUrl(endpoint.httpBaseUrl, credential) ??
-      resolveDesktopPairingUrl(endpoint.httpBaseUrl, credential)
-    );
-  }
-  return resolveDesktopPairingUrl(endpoint.httpBaseUrl, credential);
 }
 
 function resolveCurrentOriginPairingUrl(credential: string): string {
@@ -1911,6 +1902,9 @@ export function ConnectionsSettings() {
   const isLocalBackendNetworkAccessible = desktopBridge
     ? desktopServerExposureState?.mode === "network-accessible"
     : currentAuthPolicy === "remote-reachable";
+  const isLocalBackendRemoteAuthEnabled =
+    desktopServerExposureState?.remoteAccessEnabled === true ||
+    currentAuthPolicy === "remote-reachable";
   const trimmedTailscaleServePortInput = tailscaleServePortInput.trim();
   const parsedTailscaleServePort = Number(trimmedTailscaleServePortInput);
   const isTailscaleServePortValid =
@@ -2297,10 +2291,10 @@ export function ConnectionsSettings() {
   );
   const visibleDesktopNetworkAdvertisedEndpoints = useMemo(
     () =>
-      isLocalBackendNetworkAccessible
+      isLocalBackendRemoteAuthEnabled
         ? desktopAdvertisedEndpoints.filter((endpoint) => !isTailscaleHttpsEndpoint(endpoint))
         : [],
-    [desktopAdvertisedEndpoints, isLocalBackendNetworkAccessible],
+    [desktopAdvertisedEndpoints, isLocalBackendRemoteAuthEnabled],
   );
   const visibleDesktopAdvertisedEndpoints = useMemo(
     () =>
@@ -2310,7 +2304,7 @@ export function ConnectionsSettings() {
     [tailscaleHttpsEndpoint, visibleDesktopNetworkAdvertisedEndpoints],
   );
   const isLocalBackendRemotelyReachable =
-    isLocalBackendNetworkAccessible || tailscaleHttpsEndpoint?.status === "available";
+    isLocalBackendRemoteAuthEnabled || tailscaleHttpsEndpoint?.status === "available";
   const defaultDesktopNetworkAdvertisedEndpoint = useMemo(
     () =>
       selectPairingEndpoint(visibleDesktopNetworkAdvertisedEndpoints, defaultAdvertisedEndpointKey),
@@ -2917,7 +2911,7 @@ export function ConnectionsSettings() {
     <SettingsRow
       title="Network access"
       description={
-        isLocalBackendNetworkAccessible ? (
+        isLocalBackendRemoteAuthEnabled ? (
           <NetworkAccessDescription
             endpoint={defaultDesktopNetworkAdvertisedEndpoint}
             hiddenEndpointCount={Math.max(visibleDesktopNetworkAdvertisedEndpoints.length - 1, 0)}

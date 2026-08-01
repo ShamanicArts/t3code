@@ -372,6 +372,35 @@ describe("DesktopServerExposure", () => {
     ),
   );
 
+  it.effect("keeps the backend loopback-only behind a configured HTTPS proxy", () =>
+    withHarness(
+      lanNetworkInterfaces,
+      Effect.gen(function* () {
+        const serverExposure = yield* DesktopServerExposure.DesktopServerExposure;
+        const state = yield* serverExposure.configureFromSettings({ port: 4173 });
+
+        assert.equal(state.mode, "local-only");
+        assert.equal(state.remoteAccessEnabled, true);
+        assert.equal(state.endpointUrl, null);
+
+        const backendConfig = yield* serverExposure.backendConfig;
+        assert.equal(backendConfig.bindHost, "127.0.0.1");
+        assert.equal(backendConfig.remoteAccessEnabled, true);
+
+        const endpoints = yield* serverExposure.getAdvertisedEndpoints;
+        assert.deepEqual(
+          endpoints.map(({ httpBaseUrl, isDefault }) => ({ httpBaseUrl, isDefault })),
+          [
+            { httpBaseUrl: "http://127.0.0.1:4173/", isDefault: undefined },
+            { httpBaseUrl: "https://code.example.test/", isDefault: true },
+          ],
+        );
+      }),
+      { SHUV2CODE_DESKTOP_HTTPS_ENDPOINTS: "https://code.example.test" },
+      dieOnSpawnLayer(),
+    ),
+  );
+
   it.effect("advertises loopback, LAN, and configured manual endpoints from runtime state", () =>
     withHarness(
       lanNetworkInterfaces,
@@ -420,7 +449,6 @@ describe("DesktopServerExposure", () => {
             },
             source: "desktop-core",
             status: "available",
-            isDefault: true,
             description: "Reachable from devices on the same network.",
           },
           {
@@ -441,6 +469,7 @@ describe("DesktopServerExposure", () => {
             },
             source: "user",
             status: "unknown",
+            isDefault: true,
             description: "User-configured HTTPS endpoint for this desktop backend.",
           },
           {

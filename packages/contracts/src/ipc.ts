@@ -407,6 +407,7 @@ export const DesktopServerExposureModeSchema = Schema.Literals([
 
 export interface DesktopServerExposureState {
   mode: DesktopServerExposureMode;
+  remoteAccessEnabled?: boolean;
   endpointUrl: string | null;
   advertisedHost: string | null;
   tailscaleServeEnabled: boolean;
@@ -415,6 +416,7 @@ export interface DesktopServerExposureState {
 
 export const DesktopServerExposureStateSchema = Schema.Struct({
   mode: DesktopServerExposureModeSchema,
+  remoteAccessEnabled: Schema.optionalKey(Schema.Boolean),
   endpointUrl: Schema.NullOr(Schema.String),
   advertisedHost: Schema.NullOr(Schema.String),
   tailscaleServeEnabled: Schema.Boolean,

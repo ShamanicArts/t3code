@@ -24,6 +24,7 @@ import {
   controllerTranscriptWithActiveTarget,
   controllerActionStartRequest,
   deriveVoiceActionId,
+  mapVoiceModelSelectionError,
   planVoicePolicyTransition,
   publicVoiceSessionId,
   runSerializedVoiceActions,
@@ -31,8 +32,35 @@ import {
   targetPhaseOf,
   voiceTargetStatusText,
 } from "./VoiceControllerService.ts";
+import { VoiceRuntimeGatewayError } from "../Services/VoiceRuntimeGateway.ts";
 
 describe("VoiceControllerService coordination invariants", () => {
+  it("preserves the actionable Codex version failure during model selection", () => {
+    const error = mapVoiceModelSelectionError(
+      new VoiceRuntimeGatewayError({
+        code: "incompatible_version",
+        message: "Realtime voice requires Codex 0.146.0 or newer.",
+      }),
+    );
+
+    assert.strictEqual(error.code, "incompatible_version");
+    assert.strictEqual(error.message, "Realtime voice requires Codex 0.146.0 or newer.");
+    assert.strictEqual(error.retryable, false);
+  });
+
+  it("does not expose unrelated model-selection gateway failures", () => {
+    const error = mapVoiceModelSelectionError(
+      new VoiceRuntimeGatewayError({
+        code: "provider_unavailable",
+        message: "Sensitive provider detail.",
+      }),
+    );
+
+    assert.strictEqual(error.code, "internal_error");
+    assert.strictEqual(error.message, "No compatible model is available on the provider.");
+    assert.strictEqual(error.retryable, false);
+  });
+
   it.effect(
     "deduplicates a handoff tuple and binds the exact action id to one no-recovery turn",
     () =>

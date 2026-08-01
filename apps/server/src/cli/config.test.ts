@@ -286,6 +286,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
         makeDesktopBootstrap({
           port: 4888,
           host: "127.0.0.2",
+          remoteAccessEnabled: true,
           shuv2codeHome: baseDir,
           noBrowser: true,
           desktopBootstrapToken: "desktop-token",
@@ -341,6 +342,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
         baseDir,
         ...derivedPaths,
         host: "127.0.0.2",
+        remoteAccessEnabled: true,
         staticDir: resolved.staticDir,
         devUrl: undefined,
         noBrowser: true,

@@ -57,6 +57,7 @@ const serverExposureLayer = Layer.succeed(DesktopServerExposure.DesktopServerExp
     port: 3773,
     bindHost: "127.0.0.1",
     httpBaseUrl: new URL("http://127.0.0.1:3773"),
+    remoteAccessEnabled: false,
     tailscaleServeEnabled: false,
     tailscaleServePort: 443,
   }),

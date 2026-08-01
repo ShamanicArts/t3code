@@ -108,6 +108,9 @@ const EnvServerConfig = Config.all({
   ),
   port: Config.port("SHUV2CODE_PORT").pipe(Config.option, Config.map(Option.getOrUndefined)),
   host: Config.string("SHUV2CODE_HOST").pipe(Config.option, Config.map(Option.getOrUndefined)),
+  remoteAccessEnabled: Config.boolean("SHUV2CODE_REMOTE_ACCESS_ENABLED").pipe(
+    Config.withDefault(false),
+  ),
   shuv2codeHome: Config.string("SHUV2CODE_HOME").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
@@ -354,6 +357,7 @@ export const resolveServerConfig = (
       ),
       () => (mode === "desktop" ? "127.0.0.1" : undefined),
     );
+    const remoteAccessEnabled = env.remoteAccessEnabled || bootstrap?.remoteAccessEnabled === true;
     const logLevel = Option.getOrElse(cliLogLevel, () => env.logLevel);
 
     const config: ServerConfig.ServerConfig["Service"] = {
@@ -380,6 +384,7 @@ export const resolveServerConfig = (
       ...derivedPaths,
       serverTracePath,
       host,
+      ...(remoteAccessEnabled ? { remoteAccessEnabled: true } : {}),
       staticDir,
       devUrl,
       devAllowedOrigins: env.devAllowedOrigins,

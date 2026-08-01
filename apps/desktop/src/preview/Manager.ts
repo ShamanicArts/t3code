@@ -116,6 +116,7 @@ const MAX_EVALUATION_BYTES = 64_000;
 const MAX_VISIBLE_TEXT_LENGTH = 20_000;
 const MAX_INTERACTIVE_ELEMENTS = 200;
 const MAX_SCREENSHOT_WIDTH = 1280;
+const AUTOMATION_SCREENSHOT_TIMEOUT_MS = 10_000;
 const RECORDING_FRAME_INTERVAL_MS = Math.ceil(1_000 / 12);
 const RECORDING_JPEG_QUALITY = 80;
 const PICTURE_IN_PICTURE_INITIAL_WIDTH = 480;
@@ -2745,7 +2746,16 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
                 tabId,
                 webContentsId: wc.id,
               },
-              () => wc.capturePage(),
+              () => wc.capturePage(undefined, { stayHidden: true, stayAwake: true }),
+            ).pipe(
+              Effect.timeoutOrElse({
+                duration: AUTOMATION_SCREENSHOT_TIMEOUT_MS,
+                orElse: () =>
+                  new PreviewAutomationTimeoutError({
+                    tabId,
+                    timeoutMs: AUTOMATION_SCREENSHOT_TIMEOUT_MS,
+                  }),
+              }),
             )
           : Effect.succeed<Electron.NativeImage | null>(null),
         Ref.get(diagnosticsRef),

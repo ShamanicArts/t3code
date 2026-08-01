@@ -11,6 +11,7 @@ export const DesktopBackendBootstrap = Schema.Struct({
   // own home directory instead.
   shuv2codeHome: Schema.optional(Schema.String),
   host: Schema.String,
+  remoteAccessEnabled: Schema.optionalKey(Schema.Boolean),
   desktopBootstrapToken: Schema.String,
   tailscaleServeEnabled: Schema.Boolean,
   tailscaleServePort: PortSchema,

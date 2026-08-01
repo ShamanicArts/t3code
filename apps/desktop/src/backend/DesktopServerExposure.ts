@@ -154,6 +154,32 @@ const createManualEndpoint = (
 const resolveDesktopCoreAdvertisedEndpoints = (
   input: DesktopAdvertisedEndpointInput,
 ): readonly AdvertisedEndpoint[] => {
+  const customEndpoints: AdvertisedEndpoint[] = [];
+  let hasDefaultCustomHttpsEndpoint = false;
+  for (const customEndpointUrl of input.customHttpsEndpointUrls ?? []) {
+    try {
+      const isHttpsEndpoint = isHttpsEndpointUrl(customEndpointUrl);
+      const isDefault = isHttpsEndpoint && !hasDefaultCustomHttpsEndpoint;
+      if (isDefault) hasDefaultCustomHttpsEndpoint = true;
+      customEndpoints.push(
+        createManualEndpoint({
+          id: `manual:${customEndpointUrl}`,
+          label: isHttpsEndpoint ? "Custom HTTPS" : "Custom endpoint",
+          httpBaseUrl: customEndpointUrl,
+          reachability: "public",
+          ...(isHttpsEndpoint ? ({ hostedHttpsCompatibility: "compatible" } as const) : {}),
+          status: "unknown",
+          ...(isDefault ? { isDefault: true } : {}),
+          description: isHttpsEndpoint
+            ? "User-configured HTTPS endpoint for this desktop backend."
+            : "User-configured endpoint for this desktop backend.",
+        }),
+      );
+    } catch {
+      // Ignore malformed user-configured endpoints without dropping valid endpoints.
+    }
+  }
+
   const endpoints: AdvertisedEndpoint[] = [
     createDesktopEndpoint({
       id: `desktop-loopback:${input.port}`,
@@ -173,34 +199,12 @@ const resolveDesktopCoreAdvertisedEndpoints = (
         httpBaseUrl: input.exposure.endpointUrl,
         reachability: "lan",
         status: "available",
-        isDefault: true,
+        ...(!hasDefaultCustomHttpsEndpoint ? { isDefault: true } : {}),
         description: "Reachable from devices on the same network.",
       }),
     );
   }
-
-  for (const customEndpointUrl of input.customHttpsEndpointUrls ?? []) {
-    try {
-      const isHttpsEndpoint = isHttpsEndpointUrl(customEndpointUrl);
-      endpoints.push(
-        createManualEndpoint({
-          id: `manual:${customEndpointUrl}`,
-          label: isHttpsEndpoint ? "Custom HTTPS" : "Custom endpoint",
-          httpBaseUrl: customEndpointUrl,
-          reachability: "public",
-          ...(isHttpsEndpoint ? ({ hostedHttpsCompatibility: "compatible" } as const) : {}),
-          status: "unknown",
-          description: isHttpsEndpoint
-            ? "User-configured HTTPS endpoint for this desktop backend."
-            : "User-configured endpoint for this desktop backend.",
-        }),
-      );
-    } catch {
-      // Ignore malformed user-configured endpoints without dropping valid endpoints.
-    }
-  }
-
-  return endpoints;
+  return [...endpoints, ...customEndpoints];
 };
 
 export class DesktopServerExposureNoNetworkAddressError extends Schema.TaggedErrorClass<DesktopServerExposureNoNetworkAddressError>()(
@@ -258,6 +262,7 @@ export interface DesktopServerExposureBackendConfig {
   readonly port: number;
   readonly bindHost: string;
   readonly httpBaseUrl: URL;
+  readonly remoteAccessEnabled: boolean;
   readonly tailscaleServeEnabled: boolean;
   readonly tailscaleServePort: number;
 }
@@ -296,6 +301,7 @@ interface RuntimeState {
   readonly httpBaseUrl: URL;
   readonly endpointUrl: Option.Option<string>;
   readonly advertisedHost: Option.Option<string>;
+  readonly remoteAccessEnabled: boolean;
   readonly tailscaleServeEnabled: boolean;
   readonly tailscaleServePort: number;
 }
@@ -315,10 +321,12 @@ const initialRuntimeState = (): RuntimeState =>
       networkInterfaces: {},
     }),
     port: 0,
+    customHttpsEndpointUrls: [],
   });
 
 const toContractState = (state: RuntimeState): DesktopServerExposureState => ({
   mode: state.mode,
+  remoteAccessEnabled: state.remoteAccessEnabled,
   endpointUrl: Option.getOrNull(state.endpointUrl),
   advertisedHost: Option.getOrNull(state.advertisedHost),
   tailscaleServeEnabled: state.tailscaleServeEnabled,
@@ -329,6 +337,7 @@ const toBackendConfig = (state: RuntimeState): DesktopServerExposureBackendConfi
   port: state.port,
   bindHost: state.bindHost,
   httpBaseUrl: state.httpBaseUrl,
+  remoteAccessEnabled: state.remoteAccessEnabled,
   tailscaleServeEnabled: state.tailscaleServeEnabled,
   tailscaleServePort: state.tailscaleServePort,
 });
@@ -347,7 +356,9 @@ function runtimeStateFromResolvedExposure(input: {
   readonly settings: DesktopAppSettings.DesktopSettings;
   readonly exposure: ResolvedDesktopServerExposure;
   readonly port: number;
+  readonly customHttpsEndpointUrls: readonly string[];
 }): RuntimeState {
+  const hasCustomHttpsEndpoint = input.customHttpsEndpointUrls.some(isHttpsEndpointUrl);
   return {
     requestedMode: input.requestedMode,
     mode: input.exposure.mode,
@@ -358,6 +369,10 @@ function runtimeStateFromResolvedExposure(input: {
     httpBaseUrl: new URL(input.exposure.localHttpUrl),
     endpointUrl: Option.fromNullishOr(input.exposure.endpointUrl),
     advertisedHost: Option.fromNullishOr(input.exposure.advertisedHost),
+    remoteAccessEnabled:
+      input.exposure.mode === "network-accessible" ||
+      input.settings.tailscaleServeEnabled ||
+      hasCustomHttpsEndpoint,
     tailscaleServeEnabled: input.settings.tailscaleServeEnabled,
     tailscaleServePort: input.settings.tailscaleServePort,
   };
@@ -369,6 +384,7 @@ function resolveRuntimeState(input: {
   readonly port: number;
   readonly networkInterfaces: DesktopNetworkInterfaces.NetworkInterfaces;
   readonly advertisedHostOverride: Option.Option<string>;
+  readonly customHttpsEndpointUrls: readonly string[];
 }): ResolvedRuntimeState {
   const advertisedHostOverride = Option.getOrUndefined(input.advertisedHostOverride);
   const requestedExposure = resolveDesktopServerExposure({
@@ -394,6 +410,7 @@ function resolveRuntimeState(input: {
       settings: input.settings,
       exposure,
       port: input.port,
+      customHttpsEndpointUrls: input.customHttpsEndpointUrls,
     }),
     unavailable,
   };
@@ -402,7 +419,8 @@ function resolveRuntimeState(input: {
 const requiresBackendRelaunch = (previous: RuntimeState, next: RuntimeState): boolean =>
   previous.port !== next.port ||
   previous.bindHost !== next.bindHost ||
-  previous.localHttpUrl !== next.localHttpUrl;
+  previous.localHttpUrl !== next.localHttpUrl ||
+  previous.remoteAccessEnabled !== next.remoteAccessEnabled;
 
 export const make = Effect.gen(function* () {
   const config = yield* DesktopConfig.DesktopConfig;
@@ -440,6 +458,7 @@ export const make = Effect.gen(function* () {
         port,
         networkInterfaces: currentNetworkInterfaces,
         advertisedHostOverride: config.desktopLanHostOverride,
+        customHttpsEndpointUrls: config.desktopHttpsEndpointUrls,
       });
       yield* Ref.set(stateRef, resolved.state);
       return toContractState(resolved.state);
@@ -463,6 +482,7 @@ export const make = Effect.gen(function* () {
       port: previous.port,
       networkInterfaces: currentNetworkInterfaces,
       advertisedHostOverride: config.desktopLanHostOverride,
+      customHttpsEndpointUrls: config.desktopHttpsEndpointUrls,
     });
 
     if (resolved.unavailable) {
@@ -512,6 +532,10 @@ export const make = Effect.gen(function* () {
         ...current,
         tailscaleServeEnabled: result.settings.tailscaleServeEnabled,
         tailscaleServePort: result.settings.tailscaleServePort,
+        remoteAccessEnabled:
+          current.mode === "network-accessible" ||
+          result.settings.tailscaleServeEnabled ||
+          config.desktopHttpsEndpointUrls.some(isHttpsEndpointUrl),
       }));
 
       return {
