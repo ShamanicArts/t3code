@@ -20,6 +20,7 @@ import {
 import * as Cache from "effect/Cache";
 import * as Cause from "effect/Cause";
 import * as Crypto from "effect/Crypto";
+import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -1810,6 +1811,48 @@ const make = Effect.gen(function* () {
 
   const worker = yield* makeDrainableWorker(processInputSafely);
 
+  const reconcileProjectedSessions = Effect.fn("reconcileProjectedSessions")(function* () {
+    const [snapshot, liveSessions] = yield* Effect.all([
+      projectionSnapshotQuery.getShellSnapshot(),
+      providerService.listSessions(),
+    ]);
+    const liveThreadIds = new Set(liveSessions.map((session) => session.threadId));
+    const staleThreads = snapshot.threads.filter(
+      (thread) =>
+        (thread.session?.status === "starting" || thread.session?.status === "running") &&
+        !liveThreadIds.has(thread.id),
+    );
+
+    yield* Effect.forEach(
+      staleThreads,
+      (thread) =>
+        Effect.gen(function* () {
+          const session = thread.session!;
+          const now = DateTime.formatIso(yield* DateTime.now);
+          const commandUuid = yield* crypto.randomUUIDv4;
+          yield* orchestrationEngine.dispatch({
+            type: "thread.session.set",
+            commandId: CommandId.make(
+              `provider:startup-session-reconcile:${thread.id}:${commandUuid}`,
+            ),
+            threadId: thread.id,
+            session: {
+              ...session,
+              status: "stopped",
+              activeTurnId: null,
+              updatedAt: now,
+            },
+            createdAt: now,
+          });
+          yield* Effect.logInfo("provider runtime ingestion reconciled stale projected session", {
+            threadId: thread.id,
+            projectedStatus: session.status,
+          });
+        }),
+      { concurrency: 1 },
+    ).pipe(Effect.asVoid);
+  });
+
   const start: ProviderRuntimeIngestionShape["start"] = () =>
     Effect.gen(function* () {
       yield* Effect.forkScoped(
@@ -1824,6 +1867,13 @@ const make = Effect.gen(function* () {
           }
           return worker.enqueue({ source: "domain", event });
         }),
+      );
+      yield* reconcileProjectedSessions().pipe(
+        Effect.catchCause((cause) =>
+          Effect.logWarning("provider runtime startup reconciliation failed", {
+            cause: Cause.pretty(cause),
+          }),
+        ),
       );
     });
 

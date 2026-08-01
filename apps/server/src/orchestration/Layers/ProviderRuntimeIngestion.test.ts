@@ -224,7 +224,11 @@ describe("ProviderRuntimeIngestion", () => {
     }
   });
 
-  async function createHarness(options?: { serverSettings?: Partial<ServerSettings> }) {
+  async function createHarness(options?: {
+    serverSettings?: Partial<ServerSettings>;
+    startIngestion?: boolean;
+    seedProviderSession?: boolean;
+  }) {
     const workspaceRoot = makeTempDir("shuv2code-provider-project-");
     NodeFS.mkdirSync(NodePath.join(workspaceRoot, ".git"));
     const provider = createProviderServiceHarness();
@@ -253,8 +257,12 @@ describe("ProviderRuntimeIngestion", () => {
     const engine = await runtime.runPromise(Effect.service(OrchestrationEngineService));
     const snapshotQuery = await runtime.runPromise(Effect.service(ProjectionSnapshotQuery));
     const ingestion = await runtime.runPromise(Effect.service(ProviderRuntimeIngestionService));
-    scope = await Effect.runPromise(Scope.make("sequential"));
-    await Effect.runPromise(ingestion.start().pipe(Scope.provide(scope)));
+    const ingestionScope = await Effect.runPromise(Scope.make("sequential"));
+    scope = ingestionScope;
+    const start = () => Effect.runPromise(ingestion.start().pipe(Scope.provide(ingestionScope)));
+    if (options?.startIngestion !== false) {
+      await start();
+    }
     const drain = () => Effect.runPromise(ingestion.drain);
 
     const createdAt = "2026-01-01T00:00:00.000Z";
@@ -307,23 +315,62 @@ describe("ProviderRuntimeIngestion", () => {
         createdAt,
       }),
     );
-    provider.setSession({
-      provider: ProviderDriverKind.make("codex"),
-      status: "ready",
-      runtimeMode: "approval-required",
-      threadId: ThreadId.make("thread-1"),
-      createdAt,
-      updatedAt: createdAt,
-    });
+    if (options?.seedProviderSession !== false) {
+      provider.setSession({
+        provider: ProviderDriverKind.make("codex"),
+        status: "ready",
+        runtimeMode: "approval-required",
+        threadId: ThreadId.make("thread-1"),
+        createdAt,
+        updatedAt: createdAt,
+      });
+    }
 
     return {
       engine,
       readModel: () => Effect.runPromise(snapshotQuery.getSnapshot()),
       emit: provider.emit,
       setProviderSession: provider.setSession,
+      start,
       drain,
     };
   }
+
+  it("stops a projected running session that has no live provider session on startup", async () => {
+    const harness = await createHarness({
+      startIngestion: false,
+      seedProviderSession: false,
+    });
+    const threadId = asThreadId("thread-1");
+    const turnId = asTurnId("turn-before-server-restart");
+
+    await Effect.runPromise(
+      harness.engine.dispatch({
+        type: "thread.session.set",
+        commandId: CommandId.make("cmd-running-before-server-restart"),
+        threadId,
+        session: {
+          threadId,
+          status: "running",
+          providerName: "codex",
+          runtimeMode: "approval-required",
+          activeTurnId: turnId,
+          updatedAt: "2026-01-01T00:00:01.000Z",
+          lastError: null,
+        },
+        createdAt: "2026-01-01T00:00:01.000Z",
+      }),
+    );
+
+    await harness.start();
+
+    const thread = await waitForThread(
+      harness.readModel,
+      (entry) => entry.session?.status === "stopped" && entry.session.activeTurnId === null,
+    );
+    expect(thread.session?.status).toBe("stopped");
+    expect(thread.session?.activeTurnId).toBeNull();
+  });
 
   it("maps turn started/completed events into thread session updates", async () => {
     const harness = await createHarness();
