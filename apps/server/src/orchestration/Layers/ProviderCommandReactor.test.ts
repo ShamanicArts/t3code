@@ -35,7 +35,7 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { deriveServerPaths, ServerConfig } from "../../config.ts";
 import { TextGenerationError } from "@shuv2code/contracts";
-import { ProviderAdapterRequestError } from "../../provider/Errors.ts";
+import { ProviderAdapterRequestError, ProviderValidationError } from "../../provider/Errors.ts";
 import { OrchestrationEventStoreLive } from "../../persistence/Layers/OrchestrationEventStore.ts";
 import { OrchestrationCommandReceiptRepositoryLive } from "../../persistence/Layers/OrchestrationCommandReceipts.ts";
 import { SqlitePersistenceMemory } from "../../persistence/Layers/Sqlite.ts";
@@ -2471,6 +2471,73 @@ describe("ProviderCommandReactor", () => {
         expect(thread?.session?.threadId).toBe("thread-1");
         expect(thread?.session?.providerInstanceId).toBe(ProviderInstanceId.make("codex_work"));
         expect(thread?.session?.activeTurnId).toBeNull();
+      }),
+  );
+
+  effectIt.effect(
+    "retries a steer as an idle-only start when the provider turn finishes during dispatch",
+    () =>
+      Effect.gen(function* () {
+        const harness = yield* Effect.promise(() => createHarness());
+        const now = "2026-01-01T00:00:00.000Z";
+        harness.steerTurn.mockImplementationOnce(
+          () =>
+            Effect.fail(
+              new ProviderValidationError({
+                operation: "ProviderService.steerTurn",
+                issue: "already_terminal: thread 'thread-1' has no active turn.",
+              }),
+            ) as never,
+        );
+        harness.sendTurn.mockImplementationOnce(() =>
+          Effect.succeed({
+            threadId: ThreadId.make("thread-1"),
+            turnId: asTurnId("turn-2"),
+          }),
+        );
+
+        yield* harness.engine.dispatch({
+          type: "thread.session.set",
+          commandId: CommandId.make("cmd-session-set-steer-race"),
+          threadId: ThreadId.make("thread-1"),
+          session: {
+            threadId: ThreadId.make("thread-1"),
+            status: "running",
+            providerName: "codex",
+            runtimeMode: "approval-required",
+            activeTurnId: asTurnId("turn-1"),
+            lastError: null,
+            updatedAt: now,
+          },
+          createdAt: now,
+        });
+
+        yield* harness.engine.dispatch({
+          type: "thread.turn.steer",
+          commandId: CommandId.make("cmd-turn-steer-race"),
+          threadId: ThreadId.make("thread-1"),
+          expectedTurnId: asTurnId("turn-1"),
+          message: {
+            messageId: asMessageId("message-turn-steer-race"),
+            role: "user",
+            text: "Carry this into the follow-up turn.",
+            attachments: [],
+          },
+          createdAt: now,
+        });
+
+        yield* Effect.promise(() => waitFor(() => harness.sendTurn.mock.calls.length === 1));
+        expect(harness.sendTurn.mock.calls[0]?.[0]).toEqual({
+          threadId: "thread-1",
+          input: "Carry this into the follow-up turn.",
+          clientUserMessageId: "message-turn-steer-race",
+          expectedTurnId: null,
+        });
+        const readModel = yield* Effect.promise(() => harness.readModel());
+        const thread = readModel.threads.find((entry) => entry.id === "thread-1");
+        expect(
+          thread?.activities.some((activity) => activity.kind === "provider.turn.steer.failed"),
+        ).toBe(false);
       }),
   );
 });

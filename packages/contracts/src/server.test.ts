@@ -25,6 +25,7 @@ describe("ServerProvider", () => {
     expect(parsed.skills).toEqual([]);
     expect(parsed.versionAdvisory).toBeUndefined();
     expect(parsed.updateState).toBeUndefined();
+    expect(parsed.turnSteering).toBeUndefined();
   });
 
   it("defaults one-click update support when decoding older advisory snapshots", () => {
@@ -70,5 +71,22 @@ describe("ServerProvider", () => {
     });
 
     expect(parsed.continuation?.groupKey).toBe("codex:home:/Users/julius/.codex");
+  });
+
+  it("decodes the provider turn-steering capability", () => {
+    const parsed = decodeServerProvider({
+      instanceId: "codex",
+      driver: "codex",
+      turnSteering: "same-turn",
+      enabled: true,
+      installed: true,
+      version: "1.0.0",
+      status: "ready",
+      auth: { status: "authenticated" },
+      checkedAt: "2026-04-10T00:00:00.000Z",
+      models: [],
+    });
+
+    expect(parsed.turnSteering).toBe("same-turn");
   });
 });

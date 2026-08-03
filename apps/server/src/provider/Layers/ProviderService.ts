@@ -923,7 +923,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
         operation: "ProviderService.sendTurn",
         allowRecovery: input.recoveryPolicy !== "forbid",
       });
-      if (input.expectedTurnId === null || input.expectedTurnId === undefined) {
+      if (input.expectedTurnId === null) {
         const binding = Option.getOrUndefined(yield* directory.getBinding(input.threadId));
         let activeTurnId = binding ? readPersistedActiveTurnId(binding.runtimePayload) : undefined;
         if (binding !== undefined && activeTurnId !== undefined) {

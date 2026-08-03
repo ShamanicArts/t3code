@@ -29,7 +29,7 @@ import { makeDrainableWorker } from "@shuv2code/shared/DrainableWorker";
 
 import { resolveThreadWorkspaceCwd } from "../../checkpointing/Utils.ts";
 import { increment, orchestrationEventsProcessedTotal } from "../../observability/Metrics.ts";
-import { ProviderAdapterRequestError } from "../../provider/Errors.ts";
+import { ProviderAdapterRequestError, ProviderValidationError } from "../../provider/Errors.ts";
 import type { ProviderServiceError } from "../../provider/Errors.ts";
 import { OrchestrationCommandReceiptRepositoryLive } from "../../persistence/Layers/OrchestrationCommandReceipts.ts";
 import { TextGeneration } from "../../textGeneration/TextGeneration.ts";
@@ -49,6 +49,7 @@ import {
 import { VcsStatusBroadcaster } from "../../vcs/VcsStatusBroadcaster.ts";
 import { GitWorkflowService } from "../../git/GitWorkflowService.ts";
 const isProviderAdapterRequestError = Schema.is(ProviderAdapterRequestError);
+const isProviderValidationError = Schema.is(ProviderValidationError);
 const isProviderDriverKind = Schema.is(ProviderDriverKind);
 const decodeActorProvenanceJson = Schema.decodeUnknownOption(
   Schema.fromJsonString(
@@ -140,6 +141,15 @@ function findProviderAdapterRequestError(
 ): ProviderAdapterRequestError | undefined {
   const failReason = cause.reasons.find(Cause.isFailReason);
   return isProviderAdapterRequestError(failReason?.error) ? failReason.error : undefined;
+}
+
+function isAlreadyTerminalSteerFailure(cause: Cause.Cause<unknown>): boolean {
+  const failReason = cause.reasons.find(Cause.isFailReason);
+  return (
+    isProviderValidationError(failReason?.error) &&
+    failReason.error.operation === "ProviderService.steerTurn" &&
+    failReason.error.issue.startsWith("already_terminal:")
+  );
 }
 
 function isUnknownPendingApprovalRequestError(cause: Cause.Cause<ProviderServiceError>): boolean {
@@ -1091,17 +1101,43 @@ const make = Effect.gen(function* () {
       sanitizedCode: "dispatch_pending",
       createdAt: event.payload.createdAt,
     });
-    yield* providerService
-      .steerTurn({
+    const providerMessage = {
+      threadId: event.payload.threadId,
+      ...(toNonEmptyProviderInput(message.text) !== undefined
+        ? { input: toNonEmptyProviderInput(message.text) }
+        : {}),
+      ...(message.attachments !== undefined && message.attachments.length > 0
+        ? { attachments: message.attachments }
+        : {}),
+      clientUserMessageId: event.payload.clientUserMessageId,
+    };
+    const appendFailedOutcomeAndActivity = (cause: Cause.Cause<unknown>) => {
+      const outcome = classifyProviderEffectFailure(cause);
+      return appendProviderEffectOutcome({
+        operationId,
+        operation: "steer",
+        ...outcome,
         threadId: event.payload.threadId,
         expectedTurnId: event.payload.expectedTurnId,
-        ...(toNonEmptyProviderInput(message.text) !== undefined
-          ? { input: toNonEmptyProviderInput(message.text) }
-          : {}),
-        ...(message.attachments !== undefined && message.attachments.length > 0
-          ? { attachments: message.attachments }
-          : {}),
-        clientUserMessageId: event.payload.clientUserMessageId,
+        actualTurnId: null,
+        createdAt: event.payload.createdAt,
+      }).pipe(
+        Effect.andThen(
+          appendProviderFailureActivity({
+            threadId: event.payload.threadId,
+            kind: "provider.turn.steer.failed",
+            summary: "Provider turn steer failed",
+            detail: formatFailureDetail(cause, sensitiveProviderEffect),
+            turnId: event.payload.expectedTurnId,
+            createdAt: event.payload.createdAt,
+          }),
+        ),
+      );
+    };
+    yield* providerService
+      .steerTurn({
+        ...providerMessage,
+        expectedTurnId: event.payload.expectedTurnId,
       })
       .pipe(
         Effect.tap((turn) =>
@@ -1117,27 +1153,29 @@ const make = Effect.gen(function* () {
           }),
         ),
         Effect.catchCause((cause) => {
-          const outcome = classifyProviderEffectFailure(cause);
-          return appendProviderEffectOutcome({
-            operationId,
-            operation: "steer",
-            ...outcome,
-            threadId: event.payload.threadId,
-            expectedTurnId: event.payload.expectedTurnId,
-            actualTurnId: null,
-            createdAt: event.payload.createdAt,
-          }).pipe(
-            Effect.andThen(
-              appendProviderFailureActivity({
-                threadId: event.payload.threadId,
-                kind: "provider.turn.steer.failed",
-                summary: "Provider turn steer failed",
-                detail: formatFailureDetail(cause, sensitiveProviderEffect),
-                turnId: event.payload.expectedTurnId,
-                createdAt: event.payload.createdAt,
-              }),
-            ),
-          );
+          if (!isAlreadyTerminalSteerFailure(cause)) {
+            return appendFailedOutcomeAndActivity(cause);
+          }
+          return providerService
+            .sendTurn({
+              ...providerMessage,
+              expectedTurnId: null,
+            })
+            .pipe(
+              Effect.tap((turn) =>
+                appendProviderEffectOutcome({
+                  operationId,
+                  operation: "steer",
+                  state: "confirmed",
+                  threadId: event.payload.threadId,
+                  expectedTurnId: event.payload.expectedTurnId,
+                  actualTurnId: turn.turnId,
+                  sanitizedCode: "restarted_after_terminal",
+                  createdAt: event.payload.createdAt,
+                }),
+              ),
+              Effect.catchCause(appendFailedOutcomeAndActivity),
+            );
         }),
         Effect.forkScoped,
       );
