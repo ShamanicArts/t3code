@@ -5,6 +5,7 @@ import {
   DEVELOPMENT_ICON_OVERRIDES,
   DEVELOPMENT_PUBLIC_ICON_OVERRIDES,
   resolveWebAssetBrandForChannel,
+  resolveWebAssetBrandForPackageVersion,
   resolveWebIconOverrides,
 } from "./brand-assets.ts";
 
@@ -75,6 +76,11 @@ describe("brand-assets", () => {
   it("maps hosted release channels to web asset brands", () => {
     expect(resolveWebAssetBrandForChannel("latest")).toBe("production");
     expect(resolveWebAssetBrandForChannel("nightly")).toBe("nightly");
+  });
+
+  it("maps package versions to production or nightly web assets", () => {
+    expect(resolveWebAssetBrandForPackageVersion("0.1.0-alpha.1")).toBe("production");
+    expect(resolveWebAssetBrandForPackageVersion("0.1.0-nightly.20260805.7")).toBe("nightly");
   });
 
   it("keeps development, nightly, and production icon families separate", () => {
