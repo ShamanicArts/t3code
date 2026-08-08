@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import * as NodeFS from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -101,11 +101,11 @@ describe("searchSettings", () => {
   });
 
   it("keeps recovered settings search results anchored in their panels", () => {
-    const automationsSource = readFileSync(
+    const automationsSource = NodeFS.readFileSync(
       new URL("./AutomationsSettings.tsx", import.meta.url),
       "utf8",
     );
-    const speechSource = readFileSync(
+    const speechSource = NodeFS.readFileSync(
       new URL("./SpeechSettingsPanel.tsx", import.meta.url),
       "utf8",
     );

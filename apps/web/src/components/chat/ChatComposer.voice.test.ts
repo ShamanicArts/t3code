@@ -1,5 +1,5 @@
 import { ProjectId, ProviderDriverKind } from "@shuv2code/contracts";
-import { readFileSync } from "node:fs";
+import * as NodeFS from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
 
 import { resolveVoiceControlHostProjectId } from "./ChatComposer.voice";
@@ -42,7 +42,7 @@ describe("resolveVoiceControlHostProjectId", () => {
   });
 
   it("keeps voice control mounted with the current composer configuration", () => {
-    const source = readFileSync(new URL("./ChatComposer.tsx", import.meta.url), "utf8");
+    const source = NodeFS.readFileSync(new URL("./ChatComposer.tsx", import.meta.url), "utf8");
     const actionsStart = source.indexOf('data-chat-composer-actions="right"');
     const primaryActionsStart = source.indexOf("<ComposerFooterPrimaryActions", actionsStart);
 
