@@ -8,33 +8,81 @@
         "role": "primary",
         "displayName": "Production Brick",
         "canonical": "#d35c46",
-        "tonalRamp": ["#351713", "#57251d", "#7a3327", "#9e4334", "#d35c46", "#e18470", "#edb1a3", "#f9e4de"]
+        "tonalRamp": [
+          "#351713",
+          "#57251d",
+          "#7a3327",
+          "#9e4334",
+          "#d35c46",
+          "#e18470",
+          "#edb1a3",
+          "#f9e4de"
+        ]
       },
       "midnight-canvas": {
         "role": "neutral",
         "displayName": "Midnight Canvas",
         "canonical": "#0c1119",
-        "tonalRamp": ["#090d13", "#111925", "#1d2a3b", "#30445d", "#506a87", "#8094ab", "#b9c5d2", "#edf1f5"]
+        "tonalRamp": [
+          "#090d13",
+          "#111925",
+          "#1d2a3b",
+          "#30445d",
+          "#506a87",
+          "#8094ab",
+          "#b9c5d2",
+          "#edf1f5"
+        ]
       },
       "paper-canvas": {
         "role": "neutral",
         "displayName": "Paper Canvas",
         "canonical": "#faf8f5",
-        "tonalRamp": ["#292724", "#4b4843", "#6e6a63", "#928d84", "#b6b0a7", "#d5d0c8", "#ebe7e1", "#faf8f5"]
+        "tonalRamp": [
+          "#292724",
+          "#4b4843",
+          "#6e6a63",
+          "#928d84",
+          "#b6b0a7",
+          "#d5d0c8",
+          "#ebe7e1",
+          "#faf8f5"
+        ]
       }
     },
     "typographyMeta": {
       "title": { "displayName": "Product Title", "purpose": "Compact page and panel titles." },
-      "body": { "displayName": "Product Body", "purpose": "Settings, messages, and supporting prose." },
-      "label": { "displayName": "Control Label", "purpose": "Navigation, toolbars, metadata, and controls." },
-      "mono": { "displayName": "Code Mono", "purpose": "Commands, paths, identifiers, schedules, and terminal-adjacent values." }
+      "body": {
+        "displayName": "Product Body",
+        "purpose": "Settings, messages, and supporting prose."
+      },
+      "label": {
+        "displayName": "Control Label",
+        "purpose": "Navigation, toolbars, metadata, and controls."
+      },
+      "mono": {
+        "displayName": "Code Mono",
+        "purpose": "Commands, paths, identifiers, schedules, and terminal-adjacent values."
+      }
     },
     "shadows": [
-      { "name": "control-low", "value": "0 1px 2px rgb(0 0 0 / 0.05)", "purpose": "Structural lift for bordered controls and compact cards." }
+      {
+        "name": "control-low",
+        "value": "0 1px 2px rgb(0 0 0 / 0.05)",
+        "purpose": "Structural lift for bordered controls and compact cards."
+      }
     ],
     "motion": [
-      { "name": "state-fast", "value": "180ms ease-out", "purpose": "One-shot state feedback and compact transitions." },
-      { "name": "reduced-motion", "value": "none", "purpose": "Required fallback for nonessential animation." }
+      {
+        "name": "state-fast",
+        "value": "180ms ease-out",
+        "purpose": "One-shot state feedback and compact transitions."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "none",
+        "purpose": "Required fallback for nonessential animation."
+      }
     ],
     "breakpoints": [
       { "name": "sm", "value": "640px" },
@@ -92,9 +140,21 @@
       "DM Sans for product UI and JetBrains Mono for code-shaped content"
     ],
     "rules": [
-      { "name": "The Ten Percent Rule", "body": "Brick stays below roughly ten percent of a working surface. Its rarity makes selection and action legible.", "section": "colors" },
-      { "name": "The One Sans Rule", "body": "Do not introduce display typography into product UI. Hierarchy comes from weight, size, spacing, and placement.", "section": "typography" },
-      { "name": "The Tonal First Rule", "body": "Choose the correct adjacent surface token before adding shadow. If the surface only works with a large shadow, its hierarchy is wrong.", "section": "elevation" }
+      {
+        "name": "The Ten Percent Rule",
+        "body": "Brick stays below roughly ten percent of a working surface. Its rarity makes selection and action legible.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Sans Rule",
+        "body": "Do not introduce display typography into product UI. Hierarchy comes from weight, size, spacing, and placement.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tonal First Rule",
+        "body": "Choose the correct adjacent surface token before adding shadow. If the surface only works with a large shadow, its hierarchy is wrong.",
+        "section": "elevation"
+      }
     ],
     "dos": [
       "Do preserve the existing information architecture, density, spacing, and control alignment when restoring a lost capability.",

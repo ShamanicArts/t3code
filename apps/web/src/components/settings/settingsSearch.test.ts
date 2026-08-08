@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   searchableSetting,
   searchSettings,
+  SETTINGS_SECTION_LABELS,
   SETTINGS_SEARCH_ITEMS,
   type SettingsSearchItem,
 } from "./settingsSearch";
@@ -82,6 +83,21 @@ describe("searchSettings", () => {
       id: "environment-identification",
       to: "/settings/appearance",
       targetId: "appearance",
+    });
+  });
+
+  it("keeps shipped Automation and Speech surfaces discoverable", () => {
+    expect(SETTINGS_SECTION_LABELS).toMatchObject({
+      "/settings/automations": "Automations",
+      "/settings/speech": "Speech",
+    });
+    expect(searchSettings("automations")[0]).toMatchObject({
+      id: "automations",
+      to: "/settings/automations",
+    });
+    expect(searchSettings("speech")[0]).toMatchObject({
+      id: "speech",
+      to: "/settings/speech",
     });
   });
 });
