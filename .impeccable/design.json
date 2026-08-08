@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-08T20:00:16Z",
+  "title": "Design System: shuv2code",
+  "extensions": {
+    "colorMeta": {
+      "brick-dark": {
+        "role": "primary",
+        "displayName": "Production Brick",
+        "canonical": "#d35c46",
+        "tonalRamp": ["#351713", "#57251d", "#7a3327", "#9e4334", "#d35c46", "#e18470", "#edb1a3", "#f9e4de"]
+      },
+      "midnight-canvas": {
+        "role": "neutral",
+        "displayName": "Midnight Canvas",
+        "canonical": "#0c1119",
+        "tonalRamp": ["#090d13", "#111925", "#1d2a3b", "#30445d", "#506a87", "#8094ab", "#b9c5d2", "#edf1f5"]
+      },
+      "paper-canvas": {
+        "role": "neutral",
+        "displayName": "Paper Canvas",
+        "canonical": "#faf8f5",
+        "tonalRamp": ["#292724", "#4b4843", "#6e6a63", "#928d84", "#b6b0a7", "#d5d0c8", "#ebe7e1", "#faf8f5"]
+      }
+    },
+    "typographyMeta": {
+      "title": { "displayName": "Product Title", "purpose": "Compact page and panel titles." },
+      "body": { "displayName": "Product Body", "purpose": "Settings, messages, and supporting prose." },
+      "label": { "displayName": "Control Label", "purpose": "Navigation, toolbars, metadata, and controls." },
+      "mono": { "displayName": "Code Mono", "purpose": "Commands, paths, identifiers, schedules, and terminal-adjacent values." }
+    },
+    "shadows": [
+      { "name": "control-low", "value": "0 1px 2px rgb(0 0 0 / 0.05)", "purpose": "Structural lift for bordered controls and compact cards." }
+    ],
+    "motion": [
+      { "name": "state-fast", "value": "180ms ease-out", "purpose": "One-shot state feedback and compact transitions." },
+      { "name": "reduced-motion", "value": "none", "purpose": "Required fallback for nonessential animation." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary-dark",
+      "description": "Compact brick primary action with complete hover and keyboard focus states.",
+      "html": "<button class=\"ds-button-primary\">Run now</button>",
+      "css": ".ds-button-primary { height: 32px; padding: 0 12px; border: 1px solid #d35c46; border-radius: 8px; background: #d35c46; color: #0c1119; font: 500 13px/1.25 'DM Sans', system-ui, sans-serif; box-shadow: 0 1px 2px rgb(0 0 0 / .05); } .ds-button-primary:hover { background: #c95440; } .ds-button-primary:focus-visible { outline: 2px solid #d35c46; outline-offset: 2px; } .ds-button-primary:active { box-shadow: none; }"
+    },
+    {
+      "name": "Ghost Toolbar Button",
+      "kind": "button",
+      "description": "Quiet icon-forward action for dense toolbars and composer controls.",
+      "html": "<button class=\"ds-button-ghost\" aria-label=\"Voice control\"><svg aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z\"/><path d=\"M19 10v2a7 7 0 0 1-14 0v-2M12 19v3\"/></svg></button>",
+      "css": ".ds-button-ghost { width: 32px; height: 32px; display: inline-grid; place-items: center; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #8995a6; } .ds-button-ghost:hover { background: #1f2835; color: #e7ecf3; } .ds-button-ghost:focus-visible { outline: 2px solid #d35c46; outline-offset: 2px; } .ds-button-ghost:active { background: #161d28; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-dark",
+      "description": "Compact tonal field with a restrained brick focus ring.",
+      "html": "<input class=\"ds-input\" value=\"Project automation\" aria-label=\"Automation name\">",
+      "css": ".ds-input { box-sizing: border-box; width: 240px; height: 30px; padding: 0 12px; border: 1px solid #1f2835; border-radius: 10px; background: #1f2835; color: #e7ecf3; font: 400 14px/1.45 'DM Sans', system-ui, sans-serif; } .ds-input:hover { border-color: rgb(137 149 166 / .32); } .ds-input:focus-visible { border-color: #d35c46; outline: 3px solid rgb(211 92 70 / .18); outline-offset: 0; }"
+    },
+    {
+      "name": "Active Navigation Row",
+      "kind": "nav",
+      "refersTo": "nav-row-active-dark",
+      "description": "Familiar settings-sidebar row with icon, label, and tonal active state.",
+      "html": "<button class=\"ds-nav-row\" aria-current=\"page\"><svg aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/></svg><span>Automations</span></button>",
+      "css": ".ds-nav-row { width: 220px; min-height: 36px; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 0; border-radius: 8px; background: #1f2835; color: #e7ecf3; font: 500 13px/1.25 'DM Sans', system-ui, sans-serif; text-align: left; } .ds-nav-row:hover { background: #293545; } .ds-nav-row:focus-visible { outline: 2px solid #d35c46; outline-offset: 1px; }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "description": "Compact semantic state label; color is reserved for real status.",
+      "html": "<span class=\"ds-badge-success\">Enabled</span>",
+      "css": ".ds-badge-success { display: inline-flex; align-items: center; min-height: 18px; padding: 0 5px; border-radius: 4px; background: rgb(16 185 129 / .16); color: #6ee7b7; font: 500 12px/1 'DM Sans', system-ui, sans-serif; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Midnight Brick Control Room",
+    "overview": "shuv2code is a compact operator workspace used while code, agents, terminals, and previews are all in motion. Quiet midnight navy or warm paper working surfaces carry the interface, with scarce brick red reserved for identity, focus, selection, links, and primary action. Familiar controls and stable placement build trust faster than explanatory copy or invented interaction patterns.",
+    "keyCharacteristics": [
+      "Dense but calm product surfaces",
+      "Warm brick accent below roughly ten percent of the working area",
+      "Tonal depth with restrained borders and shadows",
+      "Familiar navigation and controls with complete keyboard and touch behavior",
+      "DM Sans for product UI and JetBrains Mono for code-shaped content"
+    ],
+    "rules": [
+      { "name": "The Ten Percent Rule", "body": "Brick stays below roughly ten percent of a working surface. Its rarity makes selection and action legible.", "section": "colors" },
+      { "name": "The One Sans Rule", "body": "Do not introduce display typography into product UI. Hierarchy comes from weight, size, spacing, and placement.", "section": "typography" },
+      { "name": "The Tonal First Rule", "body": "Choose the correct adjacent surface token before adding shadow. If the surface only works with a large shadow, its hierarchy is wrong.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do preserve the existing information architecture, density, spacing, and control alignment when restoring a lost capability.",
+      "Do use brick only for identity, focus, selection, links, and primary action.",
+      "Do use existing sidebar, button, input, badge, and composer patterns before creating a new affordance."
+    ],
+    "donts": [
+      "Don't use generic AI dashboard spectacle: oversized gradients, glowing empty space, or decorative agent metaphors that compete with the work.",
+      "Don't allow upstream identity leakage: T3 Code names, assets, routes, or language must not appear as shuv2code product identity.",
+      "Don't ship hidden capability: direct routes, orphaned components, and undiscoverable gestures are not acceptable entry points."
+    ]
+  }
+}
