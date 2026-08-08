@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -91,13 +92,25 @@ describe("searchSettings", () => {
       "/settings/automations": "Automations",
       "/settings/speech": "Speech",
     });
-    expect(searchSettings("automations")[0]).toMatchObject({
-      id: "automations",
-      to: "/settings/automations",
-    });
-    expect(searchSettings("speech")[0]).toMatchObject({
-      id: "speech",
-      to: "/settings/speech",
-    });
+    expect(searchSettings("automations")).toContainEqual(
+      expect.objectContaining({ id: "automations", to: "/settings/automations" }),
+    );
+    expect(searchSettings("speech")).toContainEqual(
+      expect.objectContaining({ id: "speech", to: "/settings/speech" }),
+    );
+  });
+
+  it("keeps recovered settings search results anchored in their panels", () => {
+    const automationsSource = readFileSync(
+      new URL("./AutomationsSettings.tsx", import.meta.url),
+      "utf8",
+    );
+    const speechSource = readFileSync(
+      new URL("./SpeechSettingsPanel.tsx", import.meta.url),
+      "utf8",
+    );
+
+    expect(automationsSource).toContain('id={searchableSetting("automations").id}');
+    expect(speechSource).toContain('id={searchableSetting("speech").id}');
   });
 });

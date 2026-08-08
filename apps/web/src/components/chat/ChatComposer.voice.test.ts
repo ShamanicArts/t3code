@@ -1,4 +1,5 @@
 import { ProjectId, ProviderDriverKind } from "@shuv2code/contracts";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
 
 import { resolveVoiceControlHostProjectId } from "./ChatComposer.voice";
@@ -38,5 +39,24 @@ describe("resolveVoiceControlHostProjectId", () => {
         selectedProvider: ProviderDriverKind.make("codex"),
       }),
     ).toBeNull();
+  });
+
+  it("keeps voice control mounted with the current composer configuration", () => {
+    const source = readFileSync(new URL("./ChatComposer.tsx", import.meta.url), "utf8");
+    const actionsStart = source.indexOf('data-chat-composer-actions="right"');
+    const primaryActionsStart = source.indexOf("<ComposerFooterPrimaryActions", actionsStart);
+
+    expect(actionsStart).toBeGreaterThan(-1);
+    expect(primaryActionsStart).toBeGreaterThan(actionsStart);
+
+    const actionsSource = source.slice(actionsStart, primaryActionsStart);
+    expect(actionsSource).toContain("<VoiceControlButton");
+    expect(actionsSource).toContain("environmentId={environmentId}");
+    expect(actionsSource).toContain("hostProjectId={voiceControlHostProjectId}");
+    expect(actionsSource).toContain("providerInstanceId={selectedInstanceId}");
+    expect(actionsSource).toContain("modelSelection={selectedModelSelection}");
+    expect(actionsSource).toContain("realtimeEnabled={settings.enableRealtimeVoice}");
+    expect(actionsSource).toContain("threadReadEnabled={settings.enableVoiceThreadRead}");
+    expect(actionsSource).toContain("threadControlEnabled={settings.enableVoiceThreadControl}");
   });
 });
