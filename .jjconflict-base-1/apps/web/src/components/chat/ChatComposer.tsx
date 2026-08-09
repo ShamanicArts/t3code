@@ -3529,6 +3529,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   compact={isComposerPrimaryActionsCompact}
                   environmentId={environmentId}
                   hostProjectId={voiceControlHostProjectId}
+                  {...(activeThreadId === null ? {} : { targetThreadId: activeThreadId })}
                   providerInstanceId={selectedInstanceId}
                   modelSelection={selectedModelSelection}
                   realtimeEnabled={settings.enableRealtimeVoice}
