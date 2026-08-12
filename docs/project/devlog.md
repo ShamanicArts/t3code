@@ -1,5 +1,13 @@
 # Development log
 
+## 2026-08-12 — PR #80 merge-omission audit and repair
+
+- Audited the merge in three independent lanes: code and packaging, product behavior, and test/CI coverage.
+- Restored four desktop-packaging exports that the merge dropped while retaining their consumers, and added focused producer/error coverage plus a direct CLI import smoke check.
+- Restored desktop composer prompt-history browsing: ArrowUp recalls earlier user prompts at the visual top edge, ArrowDown advances and restores the unsent draft, and ordinary multiline cursor movement remains native.
+- Confirmed that PR #91 already repaired the dropped Automations, Speech, and Voice discovery entry points. No other concrete current producer/consumer, lifecycle, or user-facing omission attributable to PR #80 was found.
+- Focused verification passed: formatting and lint for the affected files; 40 targeted tests; `node apps/server/scripts/cli.ts --help`; and an authenticated browser interaction proving recall and draft restoration. Web type checking remains blocked only by the pre-existing nullable URL error in `SettingsPanels.tsx`.
+
 ## 2026-07-30 — Project automations checkpoint
 
 - Added project-scoped scheduled and manual automations with persisted schedules and run history.
