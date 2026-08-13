@@ -2,11 +2,12 @@ import { useEffect, useRef, type RefObject } from "react";
 
 import { VOICE_PHASE_RENDER_STATES, type VoicePresencePhase } from "./voicePresenceTheme";
 import {
-  hasSustainedFramePressure,
+  INITIAL_VOICE_PRESENCE_PERFORMANCE_STATE,
   isConstrainedWebGlRenderer,
-  nextSlowFramePressure,
+  nextVoicePresencePerformanceState,
   voicePresenceFrameInterval,
   voicePresenceRenderPolicy,
+  type VoicePresencePerformanceState,
   type VoicePresenceRenderPolicy,
 } from "./voicePresenceRenderPolicy";
 
@@ -270,13 +271,13 @@ export function VoicePresence({ phase, activityLevel, className }: VoicePresence
     let documentVisible = document.visibilityState === "visible";
     let surfaceVisible = true;
     let frameDirty = true;
-    let slowFramePressure = 0;
+    let performanceState: VoicePresencePerformanceState = INITIAL_VOICE_PRESENCE_PERFORMANCE_STATE;
 
     const debugRendererInfo = gl.getExtension("WEBGL_debug_renderer_info");
     const renderer = debugRendererInfo
       ? String(gl.getParameter(debugRendererInfo.UNMASKED_RENDERER_WEBGL))
       : null;
-    let constrainedRenderer = isConstrainedWebGlRenderer(renderer);
+    const softwareRenderer = isConstrainedWebGlRenderer(renderer);
 
     canvas.width = BACKING_WIDTH;
     canvas.height = BACKING_HEIGHT;
@@ -288,12 +289,14 @@ export function VoicePresence({ phase, activityLevel, className }: VoicePresence
         documentVisible,
         surfaceVisible,
         reducedMotion: reducedMotion.matches,
-        constrainedRenderer,
+        softwareRenderer,
+        performanceMode: performanceState.mode,
       });
 
     const publishPolicy = (policy: VoicePresenceRenderPolicy) => {
       canvas.dataset.renderPolicy = policy;
-      canvas.dataset.renderer = constrainedRenderer ? "constrained" : "accelerated";
+      canvas.dataset.renderer = softwareRenderer ? "software" : "accelerated";
+      canvas.dataset.performance = performanceState.mode;
     };
 
     const cancelScheduledFrame = () => {
@@ -345,18 +348,18 @@ export function VoicePresence({ phase, activityLevel, className }: VoicePresence
       publishPolicy(policy);
       if (policy === "paused" || (policy === "static" && !frameDirty)) return;
 
-      if (policy === "active") {
+      if (policy === "active" || policy === "degraded") {
         if (lastAnimationTick > 0) {
-          slowFramePressure = nextSlowFramePressure(slowFramePressure, now - lastAnimationTick);
-          if (hasSustainedFramePressure(slowFramePressure)) {
-            constrainedRenderer = true;
-            frameDirty = true;
-          }
+          performanceState = nextVoicePresencePerformanceState(
+            performanceState,
+            now - lastAnimationTick,
+            voicePresenceFrameInterval(policy) ?? 0,
+          );
         }
         lastAnimationTick = now;
       } else {
         lastAnimationTick = 0;
-        slowFramePressure = 0;
+        performanceState = INITIAL_VOICE_PRESENCE_PERFORMANCE_STATE;
       }
 
       const latestPolicy = currentPolicy();
@@ -376,6 +379,7 @@ export function VoicePresence({ phase, activityLevel, className }: VoicePresence
       surfaceVisible = visible;
       previousTime = performance.now();
       lastAnimationTick = 0;
+      performanceState = INITIAL_VOICE_PRESENCE_PERFORMANCE_STATE;
       if (visible) invalidate();
       else {
         cancelScheduledFrame();
@@ -387,6 +391,7 @@ export function VoicePresence({ phase, activityLevel, className }: VoicePresence
       documentVisible = document.visibilityState === "visible";
       previousTime = performance.now();
       lastAnimationTick = 0;
+      performanceState = INITIAL_VOICE_PRESENCE_PERFORMANCE_STATE;
       if (documentVisible) invalidate();
       else {
         cancelScheduledFrame();
