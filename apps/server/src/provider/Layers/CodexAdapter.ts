@@ -2236,6 +2236,11 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
           version: "v3",
           outputModality: "audio",
           clientManagedHandoffs: input.clientManagedHandoffs,
+          ...(input.prompt !== undefined ? { prompt: input.prompt } : {}),
+          ...(input.includeStartupContext !== undefined
+            ? { includeStartupContext: input.includeStartupContext }
+            : {}),
+          ...(input.initialItems !== undefined ? { initialItems: input.initialItems } : {}),
           transport,
           ...(input.voiceId
             ? {
