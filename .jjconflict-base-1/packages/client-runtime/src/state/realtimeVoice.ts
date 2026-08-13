@@ -4,6 +4,7 @@ import type {
   ThreadId,
   TurnId,
   VoiceActionState,
+  VoiceSessionOwner,
   VoiceUnsupportedCode,
 } from "@shuv2code/contracts";
 import type { EnvironmentRegistry } from "../connection/registry.ts";
@@ -107,6 +108,7 @@ export interface RealtimeVoiceSessionState {
   readonly clientSessionId: string | null;
   readonly generation: number;
   readonly environmentId: EnvironmentId | null;
+  readonly owner: VoiceSessionOwner | null;
   readonly phase: RealtimeVoicePhase;
   readonly controller: RealtimeVoiceControllerIdentity | null;
   readonly activeTarget: RealtimeVoiceTarget | null;
@@ -120,6 +122,7 @@ export const initialRealtimeVoiceState: RealtimeVoiceSessionState = {
   clientSessionId: null,
   generation: 0,
   environmentId: null,
+  owner: null,
   phase: { type: "idle" },
   controller: null,
   activeTarget: null,
@@ -135,6 +138,7 @@ export type RealtimeVoiceStateEvent =
       readonly clientSessionId: string;
       readonly generation: number;
       readonly environmentId: EnvironmentId;
+      readonly owner?: VoiceSessionOwner;
     }
   | { readonly type: "permission-requested"; readonly generation: number }
   | { readonly type: "negotiating"; readonly generation: number }
@@ -142,6 +146,7 @@ export type RealtimeVoiceStateEvent =
       readonly type: "connected";
       readonly generation: number;
       readonly controller: RealtimeVoiceControllerIdentity;
+      readonly owner?: VoiceSessionOwner;
     }
   | {
       readonly type: "activity-changed";
@@ -234,6 +239,7 @@ export function reduceRealtimeVoiceState(
         clientSessionId: event.clientSessionId,
         generation: event.generation,
         environmentId: event.environmentId,
+        owner: event.owner ?? null,
         phase: { type: "requesting-permission" },
       };
     case "permission-requested":
@@ -245,6 +251,7 @@ export function reduceRealtimeVoiceState(
         ...state,
         phase: { type: "connected", activity: "listening" },
         controller: event.controller,
+        owner: event.owner ?? state.owner,
       };
     case "activity-changed":
       if (state.phase.type !== "connected") {

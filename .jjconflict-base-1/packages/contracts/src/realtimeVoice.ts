@@ -249,7 +249,8 @@ export const resolveVoiceSessionStartTransport = (
 export const VoiceSessionStartResult = Schema.Struct({
   environmentId: Schema.optionalKey(EnvironmentId),
   owner: Schema.optionalKey(VoiceSessionOwner),
-  controller: VoiceControllerIdentity,
+  /** Present only for Controller and transcription sessions. */
+  controller: Schema.NullOr(VoiceControllerIdentity),
   transportThreadId: ThreadId,
   clientSessionId: VoiceClientSessionId,
   generation: VoiceGeneration,
@@ -333,6 +334,14 @@ export const VoiceRealtimeHandoffIngressEvent = Schema.Struct({
   handoffId: TrimmedNonEmptyString.check(Schema.isMaxLength(256)),
   itemId: TrimmedNonEmptyString.check(Schema.isMaxLength(256)),
   inputTranscript: TrimmedNonEmptyString.check(Schema.isMaxLength(120_000)),
+  activeTranscript: Schema.optionalKey(
+    Schema.Array(
+      Schema.Struct({
+        role: Schema.Literals(["user", "assistant"]),
+        text: Schema.String.check(Schema.isMaxLength(16_384)),
+      }),
+    ).check(Schema.isMaxLength(64)),
+  ),
 });
 
 export const VoiceRealtimeIngressEvent = Schema.Union([
@@ -458,6 +467,7 @@ export const VoiceTranscriptDoneEvent = Schema.Struct({
   itemId: VoiceTranscriptItemId,
   role: Schema.Literals(["user", "assistant"]),
   text: Schema.String.check(Schema.isMaxLength(120_000)),
+  source: Schema.optional(Schema.Literals(["realtime", "thread"])),
 });
 
 export const VoiceActionStatusEvent = Schema.Struct({
