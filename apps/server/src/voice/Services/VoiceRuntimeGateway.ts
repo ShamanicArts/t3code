@@ -134,6 +134,12 @@ export interface VoiceRuntimeGatewayShape {
     readonly offerSdp?: string | undefined;
     readonly voiceId?: string | undefined;
     readonly clientManagedHandoffs: true;
+    readonly prompt?: string | undefined;
+    readonly includeStartupContext?: boolean | undefined;
+    readonly initialItems?: ReadonlyArray<{
+      readonly role: "user" | "developer" | "assistant";
+      readonly text: string;
+    }>;
   }) => Effect.Effect<
     VoiceCodexIdentity & {
       readonly answerSdp: string | null;

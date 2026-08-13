@@ -73,6 +73,10 @@ import { resolveCodexLaunchArgs } from "./codexLaunchArgs.ts";
 import { expandHomePath } from "../../pathExpansion.ts";
 import { CodexAppServerSupervisor } from "../Services/CodexAppServerSupervisor.ts";
 import { sanitizeProviderObservabilityEvent } from "../RealtimeObservability.ts";
+import {
+  CodexThreadHistoryPreparationError,
+  runCodexThreadHistoryPreparation,
+} from "./CodexThreadHistoryPreparation.ts";
 const isCodexAppServerProcessExitedError = Schema.is(CodexErrors.CodexAppServerProcessExitedError);
 const isCodexAppServerTransportError = Schema.is(CodexErrors.CodexAppServerTransportError);
 const isCodexAppServerRequestError = Schema.is(CodexErrors.CodexAppServerRequestError);
@@ -2236,6 +2240,11 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
           version: "v3",
           outputModality: "audio",
           clientManagedHandoffs: input.clientManagedHandoffs,
+          ...(input.prompt !== undefined ? { prompt: input.prompt } : {}),
+          ...(input.includeStartupContext !== undefined
+            ? { includeStartupContext: input.includeStartupContext }
+            : {}),
+          ...(input.initialItems !== undefined ? { initialItems: input.initialItems } : {}),
           transport,
           ...(input.voiceId
             ? {
@@ -2414,6 +2423,43 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
       })),
     );
 
+  const prepareThreadHistory: NonNullable<CodexAdapterShape["prepareThreadHistory"]> = Effect.fn(
+    "CodexAdapter.prepareThreadHistory",
+  )(function* (input) {
+    const active = sessions.get(input.threadId);
+    if (active !== undefined && !active.stopped) {
+      return {
+        state: "busy" as const,
+        message: "The selected Codex thread is still active.",
+      };
+    }
+    return yield* runCodexThreadHistoryPreparation({
+      spawner: childProcessSpawner,
+      binaryPath: codexConfig.binaryPath,
+      ...(codexConfig.homePath ? { homePath: codexConfig.homePath } : {}),
+      ...(options?.environment ? { environment: options.environment } : {}),
+      cwd: process.cwd(),
+      providerThreadId: input.providerThreadId,
+      action: input.action,
+    }).pipe(
+      Effect.mapError((cause) =>
+        cause instanceof CodexThreadHistoryPreparationError
+          ? new ProviderAdapterRequestError({
+              provider: PROVIDER,
+              method: "migrate-rollouts",
+              detail: cause.message,
+              cause,
+            })
+          : new ProviderAdapterRequestError({
+              provider: PROVIDER,
+              method: "migrate-rollouts",
+              detail: "Codex thread preparation failed.",
+              cause,
+            }),
+      ),
+    );
+  });
+
   const rollbackThread: CodexAdapterShape["rollbackThread"] = (threadId, numTurns) => {
     if (!Number.isInteger(numTurns) || numTurns < 1) {
       return Effect.fail(
@@ -2541,6 +2587,7 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
     listRealtimeVoices,
     interruptTurn,
     readThread,
+    prepareThreadHistory,
     rollbackThread,
     respondToRequest,
     respondToUserInput,

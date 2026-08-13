@@ -179,7 +179,14 @@ export function VoiceSessionProvider({
       reconnect: () => controller.reconnect(),
       setMuted: (muted) => controller.setMuted(muted),
     }),
-    [controller, getController, getControllerHistory, resetController, setControllerTarget, state],
+    [
+      controller,
+      getController,
+      getControllerHistory,
+      resetController,
+      setControllerTarget,
+      state,
+    ],
   );
   useEffect(
     () => () => {
