@@ -1,6 +1,15 @@
 # Phase 6: Native Voice Surface
 
-Status: proposed
+Status: in progress
+
+## Progress
+
+- Production `VoiceSurface` now exposes the Controller / Call distinction with **All threads** and **This thread** scope labels.
+- The selected mode is environment-scoped in `rightPanelStore`, so navigating threads does not silently rewrite the user's Voice surface preference.
+- Production Call composition reuses the procedural `VoicePresence` renderer and maps live session state to listening, working, speaking, and muted presentation with temporal transcript text.
+- Drafts can enter Call presentation and receive an honest “start this thread” boundary; the button never falls through to Controller start behavior.
+- The production Call action now starts and stops thread-owned media directly; failed startup returns to a visible, retryable idle state rather than rendering false active presence.
+- Phase 3 now supplies hybrid Call semantics: contextual realtime responses stay fast, explicit handoffs enter the exact ordinary thread, and that thread can emit model-selected spoken segments. Full temporal activity projection remains to be wired into this surface.
 
 ## Overview and motivation
 
