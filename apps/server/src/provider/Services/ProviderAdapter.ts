@@ -62,6 +62,19 @@ export interface ProviderThreadSnapshot {
   readonly turns: ReadonlyArray<ProviderThreadTurnSnapshot>;
 }
 
+export type ProviderThreadHistoryPreparationResult =
+  | { readonly state: "ready"; readonly historyMode: "paginated" | "not-applicable" }
+  | { readonly state: "migration-required"; readonly bytesToProcess: number }
+  | { readonly state: "busy"; readonly message?: string }
+  | { readonly state: "unsupported"; readonly message?: string }
+  | { readonly state: "not-found"; readonly message?: string };
+
+export interface ProviderThreadHistoryPreparationInput {
+  readonly threadId: ThreadId;
+  readonly providerThreadId: string;
+  readonly action: "inspect" | "migrate";
+}
+
 export interface ProviderRealtimeStartInput {
   readonly threadId: ThreadId;
   readonly generation: number;
@@ -71,6 +84,15 @@ export interface ProviderRealtimeStartInput {
   readonly transportType?: "webrtc" | "websocket";
   readonly voiceId?: string;
   readonly clientManagedHandoffs: true;
+  /** Bounded instructions for the realtime conversational front channel. */
+  readonly prompt?: string;
+  /** Whether Codex should synthesize context from the transport shell. */
+  readonly includeStartupContext?: boolean;
+  /** Explicit context supplied by the owner of the media session. */
+  readonly initialItems?: ReadonlyArray<{
+    readonly role: "user" | "developer" | "assistant";
+    readonly text: string;
+  }>;
 }
 
 export interface ProviderRealtimeAudioInput {
@@ -212,6 +234,15 @@ export interface ProviderAdapterShape<TError> {
    * Read a provider thread snapshot.
    */
   readonly readThread: (threadId: ThreadId) => Effect.Effect<ProviderThreadSnapshot, TError>;
+
+  /**
+   * Inspect or explicitly migrate the persisted history for one exact provider
+   * thread. Optional because providers without legacy rollout formats require
+   * no preparation.
+   */
+  readonly prepareThreadHistory?: (
+    input: ProviderThreadHistoryPreparationInput,
+  ) => Effect.Effect<ProviderThreadHistoryPreparationResult, TError>;
 
   /**
    * Roll back a provider thread by N turns.

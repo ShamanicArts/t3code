@@ -1,0 +1,60 @@
+---
+import LegalPage from "../components/LegalPage.astro";
+
+const sections = [
+  ["reporting", "Reporting a vulnerability"],
+  ["scope", "Scope"],
+  ["safe-research", "Safe research"],
+  ["operator", "Operator responsibility"],
+] as const;
+---
+
+<LegalPage
+  title="Security — shuv2code"
+  description="Security reporting and operator guidance for shuv2code."
+  heading="shuv2code Security Policy"
+  lede="Report vulnerabilities privately and give maintainers a reasonable opportunity to investigate before disclosure."
+  effectiveDate="2026-07-28"
+  lastUpdated="2026-07-28"
+  sections={sections}
+>
+  <section id="reporting">
+    <p class="section-number">01</p>
+    <h2>Reporting a vulnerability</h2>
+    <p>
+      Use the repository's private security-advisory flow when available. Include the affected
+      version, impact, minimal reproduction, and sanitized evidence. Do not include live credentials,
+      private source, or personal data.
+    </p>
+  </section>
+
+  <section id="scope">
+    <p class="section-number">02</p>
+    <h2>Scope</h2>
+    <p>
+      Reports should concern shuv2code source or release artifacts. Third-party agent providers,
+      source-control hosts, networks, and self-hosted infrastructure remain under their respective
+      owners' security programs.
+    </p>
+  </section>
+
+  <section id="safe-research">
+    <p class="section-number">03</p>
+    <h2>Safe research</h2>
+    <p>
+      Test only systems and data you own or have explicit permission to test. Avoid disruption,
+      social engineering, denial of service, persistence, and unnecessary data access. Stop and
+      report if you encounter secrets or personal information.
+    </p>
+  </section>
+
+  <section id="operator">
+    <p class="section-number">04</p>
+    <h2>Operator responsibility</h2>
+    <p>
+      Keep shuv2code and its dependencies current, protect the <code>.shuv2code</code> state
+      directory, grant providers minimum necessary access, use encrypted transport for remote
+      endpoints, and rotate any credential that may have been exposed.
+    </p>
+  </section>
+</LegalPage>
