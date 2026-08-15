@@ -852,6 +852,7 @@ export const openCodexThread = (input: {
   });
   const startParams = {
     ...commonParams,
+    historyMode: "paginated" as const,
     ...(input.threadSource ? { threadSource: input.threadSource } : {}),
     ...(input.historyMode === "paginated" ? { historyMode: input.historyMode } : {}),
   };

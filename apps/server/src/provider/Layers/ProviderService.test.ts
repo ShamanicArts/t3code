@@ -49,6 +49,7 @@ import {
 import type {
   ProviderAdapterShape,
   ProviderCreationRecoveryInput,
+  ProviderThreadHistoryPreparationInput,
 } from "../Services/ProviderAdapter.ts";
 import * as ProviderAdapterRegistry from "../Services/ProviderAdapterRegistry.ts";
 import * as ProviderService from "../Services/ProviderService.ts";
@@ -256,6 +257,14 @@ function makeFakeCodexAdapter(provider: ProviderDriverKind = CODEX_DRIVER) {
       }),
   );
 
+  const prepareThreadHistory = vi.fn((input: ProviderThreadHistoryPreparationInput) =>
+    Effect.succeed({
+      state: "ready" as const,
+      historyMode:
+        input.action === "migrate" ? ("paginated" as const) : ("not-applicable" as const),
+    }),
+  );
+
   const rollbackThread = vi.fn(
     (
       threadId: ThreadId,
@@ -300,6 +309,7 @@ function makeFakeCodexAdapter(provider: ProviderDriverKind = CODEX_DRIVER) {
     listSessions,
     hasSession,
     readThread,
+    prepareThreadHistory,
     rollbackThread,
     stopAll,
     get streamEvents() {
@@ -342,6 +352,7 @@ function makeFakeCodexAdapter(provider: ProviderDriverKind = CODEX_DRIVER) {
     listSessions,
     hasSession,
     readThread,
+    prepareThreadHistory,
     rollbackThread,
     stopAll,
   };
@@ -1175,6 +1186,30 @@ it.effect(
 );
 
 routing.layer("ProviderServiceLive routing", (it) => {
+  it.effect("prepares only the exact persisted provider thread bound to the selected thread", () =>
+    Effect.gen(function* () {
+      const provider = yield* ProviderService.ProviderService;
+      const threadId = asThreadId("thread-history-preparation");
+      const providerThreadId = "codex-rollout-history-preparation";
+      yield* provider.startSession(threadId, {
+        provider: CODEX_DRIVER,
+        providerInstanceId: codexInstanceId,
+        threadId,
+        runtimeMode: "full-access",
+        resumeCursor: { threadId: providerThreadId },
+      });
+
+      routing.codex.prepareThreadHistory.mockClear();
+      const result = yield* provider.prepareThreadHistory!({ threadId, action: "inspect" });
+
+      assert.deepEqual(result, { state: "ready", historyMode: "not-applicable" });
+      assert.deepEqual(routing.codex.prepareThreadHistory.mock.calls, [
+        [{ threadId, providerThreadId, action: "inspect" }],
+      ]);
+      yield* provider.stopSession({ threadId });
+    }),
+  );
+
   it.effect("reconciles an exact terminal turn before an idle-only send", () =>
     Effect.gen(function* () {
       const provider = yield* ProviderService.ProviderService;
