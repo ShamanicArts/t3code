@@ -38,7 +38,8 @@ import { VoiceActionStatusStrip } from "./VoiceActionStatusStrip";
 import { VoiceTargetStrip } from "./VoiceTargetStrip";
 import { VoiceTranscript } from "./VoiceTranscript";
 import { VoicePresence } from "./VoicePresence";
-import { type VoicePresencePhase, voicePhaseStyle } from "./voicePresenceTheme";
+import { resolveVoicePresencePhase } from "./VoiceSurface.logic";
+import { voicePhaseStyle } from "./voicePresenceTheme";
 import { useVoiceActivity } from "./useVoiceActivity";
 
 type ControllerLookup =
@@ -83,19 +84,6 @@ export interface VoiceSurfaceProps {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "The voice thread could not be read.";
-}
-
-function voicePresencePhase(
-  sessionHere: boolean,
-  phase: ReturnType<typeof useVoiceSession>["state"]["phase"],
-  muted: boolean,
-): VoicePresencePhase {
-  if (!sessionHere || phase.type === "idle") return "idle";
-  if (muted) return "muted";
-  if (phase.type !== "connected") return "thinking";
-  if (phase.activity === "assistant-speaking") return "speaking";
-  if (phase.activity === "thinking") return "thinking";
-  return "listening";
 }
 
 function latestTranscript(
@@ -160,11 +148,12 @@ function VoiceCallSurface(props: {
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const media = useVoiceActivity(props.sessionActive || starting);
-  const sessionPhase = voicePresencePhase(props.sessionHere, voice.state.phase, voice.state.muted);
-  const phase =
-    sessionPhase === "listening" && media.activity === "assistant-speaking"
-      ? "speaking"
-      : sessionPhase;
+  const phase = resolveVoicePresencePhase(
+    props.sessionHere,
+    voice.state.phase,
+    voice.state.muted,
+    media.activity,
+  );
   const assistantText = latestTranscript(voice.state.transcript, "assistant");
   const userText = latestTranscript(voice.state.transcript, "user");
   const activityText = voice.state.controllerAction?.statusText ?? "Working in this thread…";
