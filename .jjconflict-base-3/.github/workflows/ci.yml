@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+# Personal-project gate: one fast self-hosted job (brand/schema/icons + vp check).
+# Deeper verification lives on the manual release workflow's verify job:
+# typecheck, full unit/integration tests, release-smoke, and resource-monitor
+# cargo fmt/test. Desktop package builds, mobile native lint, and signed macOS
+# builds still run only on the release pack/platform jobs, not on every PR.
+jobs:
+  ci:
+    name: CI
+    runs-on: [self-hosted, Linux, X64, shuv-ci, shuv2code-ci]
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: true
+
+      - name: Validate brand identity inputs
+        run: |
+          vp run brand:check
+          vp run schema:check
+          vp run icons:check
+
+      - name: Lint
+        run: vp check
