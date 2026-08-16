@@ -267,11 +267,7 @@ const VoiceControlPersistenceLive = VoiceControlPersistenceLayerLive.pipe(
 
 const McpSessionRegistryLayerLive = McpSessionRegistry.layer;
 
-const ThreadControlLayerLive = ThreadControlServiceLive.pipe(
-  Layer.provide(
-    Layer.mergeAll(VoiceThreadControlGrantVerifierLive, VoiceThreadControlExecutionCoordinatorLive),
-  ),
-);
+const ThreadControlLayerLive = ThreadControlServiceLive;
 
 const ControllerActionContextResolverLayerLive = ControllerActionContextResolverLive;
 
@@ -287,6 +283,8 @@ const VoiceControllerLayerLive = VoiceControllerServiceLive.pipe(
 
 const VoiceControlServicesLayerLive = Layer.mergeAll(
   ThreadControlLayerLive,
+  VoiceThreadControlGrantVerifierLive,
+  VoiceThreadControlExecutionCoordinatorLive,
   ControllerActionContextResolverLayerLive,
   VoiceControllerLayerLive,
 ).pipe(
