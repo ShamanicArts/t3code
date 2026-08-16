@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--shuv2code-font-sans);
+  --font-mono: var(--shuv2code-font-mono);
+  --color-background: var(--shuv2code-background);
+  --color-foreground: var(--shuv2code-foreground);
+  --color-popover: var(--shuv2code-popover);
+  --color-popover-foreground: var(--shuv2code-popover-foreground);
+  --color-primary: var(--shuv2code-primary);
+  --color-primary-foreground: var(--shuv2code-primary-foreground);
+  --color-muted: var(--shuv2code-muted);
+  --color-muted-foreground: var(--shuv2code-muted-foreground);
+  --color-accent: var(--shuv2code-accent);
+  --color-accent-foreground: var(--shuv2code-accent-foreground);
+  --color-border: var(--shuv2code-border);
+  --color-input: var(--shuv2code-input);
+  --color-ring: var(--shuv2code-ring);
+  --radius-sm: calc(var(--shuv2code-radius) - 4px);
+  --radius-md: calc(var(--shuv2code-radius) - 2px);
+  --radius-lg: var(--shuv2code-radius);
+  --radius-xl: calc(var(--shuv2code-radius) + 4px);
+  --radius-2xl: calc(var(--shuv2code-radius) + 8px);
+}
+
+:host {
+  --shuv2code-font-sans:
+    "DM Sans Variable", "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
+    sans-serif;
+  --shuv2code-font-mono:
+    "SF Mono", "SFMono-Regular", "JetBrains Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  --shuv2code-radius: 0.625rem;
+  --shuv2code-background: white;
+  --shuv2code-foreground: oklch(0.269 0 0);
+  --shuv2code-popover: white;
+  --shuv2code-popover-foreground: oklch(0.269 0 0);
+  --shuv2code-primary: oklch(0.488 0.217 264);
+  --shuv2code-primary-foreground: white;
+  --shuv2code-muted: rgb(0 0 0 / 4%);
+  --shuv2code-muted-foreground: oklch(0.556 0 0);
+  --shuv2code-accent: rgb(0 0 0 / 4%);
+  --shuv2code-accent-foreground: oklch(0.269 0 0);
+  --shuv2code-border: rgb(0 0 0 / 8%);
+  --shuv2code-input: rgb(0 0 0 / 10%);
+  --shuv2code-ring: oklch(0.488 0.217 264);
+  color: var(--shuv2code-foreground);
+  font-family: var(--shuv2code-font-sans);
+}
+
+* {
+  box-sizing: border-box;
+  border-color: var(--shuv2code-border);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--shuv2code-ring) 72%, transparent);
+  outline-offset: 1px;
+}
