@@ -126,7 +126,7 @@ function summarizeThread(thread: OrchestrationThreadShell): ThreadControlThreadS
 }
 
 function operationId(action: ControllerActionContext, operation: string): string {
-  return `voice:${action.voiceActionId}:${operation}`;
+  return `${action.operationIdPrefix}:${operation}`;
 }
 
 function commandId(action: ControllerActionContext, operation: string): CommandId {
@@ -298,12 +298,7 @@ export const makeThreadControlService = Effect.fn("ThreadControlService.make")(f
     engine
       .dispatch(command, {
         actorProvenance: {
-          actorKind: "voice-controller",
-          voiceActionId: action.voiceActionId,
-          controllerThreadId: action.controllerThreadId,
-          controllerRuntimeInstanceId: action.controllerRuntimeInstanceId,
-          controllerProviderTurnId: action.controllerProviderTurnId,
-          providerSessionId: action.controllerCodexProviderThreadId,
+          ...action.actorProvenance,
           providerInstanceId: authorization.providerInstanceId,
           toolName: provenance.toolName,
           operation: provenance.operation,
@@ -510,13 +505,13 @@ export const makeThreadControlService = Effect.fn("ThreadControlService.make")(f
       ...(baseModel.options !== undefined ? { options: baseModel.options } : {}),
     });
     const createdAt = DateTime.formatIso(yield* DateTime.now);
-    const threadId = ThreadId.make(`voice:${input.action.voiceActionId}:thread`);
+    const threadId = input.action.createdThreadId;
     const mode =
       RUNTIME_MODE_RANK[input.authorization.authorizedRuntimeCeiling] <=
       RUNTIME_MODE_RANK[controller.value.runtimeMode]
         ? input.authorization.authorizedRuntimeCeiling
         : controller.value.runtimeMode;
-    const providerCreationId = `voice-create:${input.action.voiceActionId}`;
+    const providerCreationId = input.action.providerCreationId;
     return yield* executeMutation({
       authorization: input.authorization,
       action: input.action,
@@ -580,7 +575,7 @@ export const makeThreadControlService = Effect.fn("ThreadControlService.make")(f
             provenance,
           );
           return {
-            voiceActionId: input.action.voiceActionId,
+            actionId: input.action.actionId,
             operationId: operationId(input.action, "create-start"),
             targetThreadId: threadId,
             disposition: "create" as const,
@@ -681,7 +676,7 @@ export const makeThreadControlService = Effect.fn("ThreadControlService.make")(f
                     provenance,
                   );
             return {
-              voiceActionId: input.action.voiceActionId,
+              actionId: input.action.actionId,
               operationId: operationId(input.action, `send-${input.disposition}`),
               targetThreadId: input.threadId,
               disposition: input.disposition,
@@ -739,7 +734,7 @@ export const makeThreadControlService = Effect.fn("ThreadControlService.make")(f
             provenance,
           );
           return {
-            voiceActionId: input.action.voiceActionId,
+            actionId: input.action.actionId,
             operationId: operationId(input.action, "interrupt"),
             targetThreadId: input.threadId,
             disposition: "interrupt" as const,
