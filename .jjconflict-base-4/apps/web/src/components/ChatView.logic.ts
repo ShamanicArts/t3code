@@ -78,6 +78,13 @@ export function resolveThreadMetadataUpdateForNextTurn(input: {
   };
 }
 
+export function resolveVoiceCallMaterializationModelSelection(input: {
+  composerModelSelection: ModelSelection | null | undefined;
+  fallbackModelSelection: ModelSelection;
+}): ModelSelection {
+  return input.composerModelSelection ?? input.fallbackModelSelection;
+}
+
 export function buildLocalDraftThread(
   threadId: ThreadId,
   draftThread: DraftThreadState,

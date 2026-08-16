@@ -907,10 +907,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     () => createModelSelection(selectedInstanceId, selectedModel, selectedModelOptionsForDispatch),
     [selectedInstanceId, selectedModel, selectedModelOptionsForDispatch],
   );
+  const voiceTransportAvailable = providerStatuses.some(
+    (provider) =>
+      provider.driver === "codex" &&
+      provider.enabled &&
+      provider.installed &&
+      provider.availability !== "unavailable",
+  );
   const voiceControlHostProjectId = resolveVoiceControlHostProjectId({
     activeProjectId: activeThread?.projectId,
-    providerAvailable: !noProviderAvailable,
-    selectedProvider,
+    transportAvailable: voiceTransportAvailable,
   });
   const selectedModelForPicker = selectedModel;
   // Instance-keyed option list so the picker can show each configured

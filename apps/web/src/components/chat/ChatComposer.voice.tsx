@@ -1,13 +1,12 @@
-import type { ProjectId, ProviderDriverKind } from "@shuv2code/contracts";
+import type { ProjectId } from "@shuv2code/contracts";
 
 import { VoiceControlButton, type VoiceControlButtonProps } from "../voice/VoiceControlButton";
 
 export function resolveVoiceControlHostProjectId(input: {
   readonly activeProjectId: ProjectId | null | undefined;
-  readonly providerAvailable: boolean;
-  readonly selectedProvider: ProviderDriverKind;
+  readonly transportAvailable: boolean;
 }): ProjectId | null {
-  if (!input.activeProjectId || !input.providerAvailable || input.selectedProvider !== "codex") {
+  if (!input.activeProjectId || !input.transportAvailable) {
     return null;
   }
   return input.activeProjectId;

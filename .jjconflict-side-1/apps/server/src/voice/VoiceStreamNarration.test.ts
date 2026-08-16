@@ -127,4 +127,25 @@ describe("VoiceStreamNarration", () => {
       ["I found the provider boundary."],
     );
   });
+
+  it("announces a durable provider failure without implying that the Call ended", () => {
+    const failed = reduceVoiceStreamNarration(initialVoiceStreamNarrationState(), {
+      ...base,
+      type: "turn.completed",
+      payload: {
+        state: "failed",
+        errorMessage: "Provider request failed with HTTP 403",
+      },
+    });
+
+    assert.deepStrictEqual(failed.chunks, [
+      {
+        key: "failure:turn:turn",
+        text: "The durable agent could not complete that request. The Call is still connected, and the provider error is available in the thread.",
+        source: "failure",
+        turnId: TurnId.make("turn"),
+      },
+    ]);
+    assert.deepStrictEqual(failed.state, initialVoiceStreamNarrationState());
+  });
 });

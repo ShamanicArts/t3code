@@ -328,6 +328,7 @@ import {
   reconcileMountedTerminalThreadIds,
   resolveThreadMetadataUpdateForNextTurn,
   resolveSendEnvMode,
+  resolveVoiceCallMaterializationModelSelection,
   revokeBlobPreviewUrl,
   revokeUserMessagePreviewUrls,
   shouldWriteThreadErrorToCurrentServerThread,
@@ -6197,13 +6198,17 @@ function ChatViewContent(props: ChatViewProps) {
         projectId: activeProject.id,
       };
     }
+    const modelSelection = resolveVoiceCallMaterializationModelSelection({
+      composerModelSelection: composerRef.current?.getSendContext().selectedModelSelection,
+      fallbackModelSelection: activeThread.modelSelection,
+    });
     const createResult = await createThread({
       environmentId,
       input: {
         threadId: activeThread.id,
         projectId: activeProject.id,
         title: activeThread.title,
-        modelSelection: activeThread.modelSelection,
+        modelSelection,
         runtimeMode,
         interactionMode,
         branch: activeThreadBranch,

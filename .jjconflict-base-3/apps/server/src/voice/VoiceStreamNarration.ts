@@ -19,7 +19,7 @@ export interface VoiceStreamNarrationState {
 export interface VoiceStreamNarrationChunk {
   readonly key: string;
   readonly text: string;
-  readonly source: "assistant" | "reasoning-summary";
+  readonly source: "assistant" | "reasoning-summary" | "failure";
   readonly turnId: ProviderRuntimeEvent["turnId"] | null;
 }
 
@@ -193,9 +193,20 @@ export function reduceVoiceStreamNarration(
       state.assistantSpokenSinceBoundary || assistant.chunks.length > 0
         ? { buffer: emptyBuffer(), chunks: [] }
         : drainBuffer(state.reasoningSummary, true, "reasoning-summary", turnId);
+    const failure =
+      event.type === "turn.completed" && event.payload.state === "failed"
+        ? [
+            {
+              key: `failure:turn:${turnId ?? "unknown"}`,
+              text: "The durable agent could not complete that request. The Call is still connected, and the provider error is available in the thread.",
+              source: "failure" as const,
+              turnId,
+            },
+          ]
+        : [];
     return {
       state: initialVoiceStreamNarrationState(),
-      chunks: [...assistant.chunks, ...fallback.chunks],
+      chunks: [...assistant.chunks, ...fallback.chunks, ...failure],
     };
   }
   return { state, chunks: [] };

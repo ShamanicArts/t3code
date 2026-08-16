@@ -1,9 +1,4 @@
-import {
-  EnvironmentId,
-  ProjectId,
-  ProviderDriverKind,
-  ProviderInstanceId,
-} from "@shuv2code/contracts";
+import { EnvironmentId, ProjectId, ProviderInstanceId } from "@shuv2code/contracts";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vite-plus/test";
 
@@ -35,36 +30,26 @@ import {
 describe("resolveVoiceControlHostProjectId", () => {
   const projectId = ProjectId.make("project-1");
 
-  it("exposes voice control for an available Codex project", () => {
+  it("exposes voice control when its realtime transport is available", () => {
     expect(
       resolveVoiceControlHostProjectId({
         activeProjectId: projectId,
-        providerAvailable: true,
-        selectedProvider: ProviderDriverKind.make("codex"),
+        transportAvailable: true,
       }),
     ).toBe(projectId);
   });
 
-  it("keeps voice control hidden without a project or Codex provider", () => {
+  it("keeps voice control hidden without a project or realtime transport", () => {
     expect(
       resolveVoiceControlHostProjectId({
         activeProjectId: null,
-        providerAvailable: true,
-        selectedProvider: ProviderDriverKind.make("codex"),
+        transportAvailable: true,
       }),
     ).toBeNull();
     expect(
       resolveVoiceControlHostProjectId({
         activeProjectId: projectId,
-        providerAvailable: true,
-        selectedProvider: ProviderDriverKind.make("claude"),
-      }),
-    ).toBeNull();
-    expect(
-      resolveVoiceControlHostProjectId({
-        activeProjectId: projectId,
-        providerAvailable: false,
-        selectedProvider: ProviderDriverKind.make("codex"),
+        transportAvailable: false,
       }),
     ).toBeNull();
   });

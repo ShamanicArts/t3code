@@ -29,6 +29,7 @@ import {
   reconcileMountedTerminalThreadIds,
   reconcileRetainedMountedThreadIds,
   resolveThreadMetadataUpdateForNextTurn,
+  resolveVoiceCallMaterializationModelSelection,
   resolveSendEnvMode,
   scheduleEnvironmentReconnectWarning,
   startNewThreadForProject,
@@ -272,6 +273,36 @@ describe("resolveThreadMetadataUpdateForNextTurn", () => {
         nextBranch: "feature/current",
       }),
     ).toBeNull();
+  });
+});
+
+describe("resolveVoiceCallMaterializationModelSelection", () => {
+  const fallbackModelSelection = {
+    instanceId: ProviderInstanceId.make("codex"),
+    model: "gpt-5.6-sol",
+  };
+
+  it("preserves the composer model selected on a pristine draft", () => {
+    const composerModelSelection = {
+      instanceId: ProviderInstanceId.make("opencode-2"),
+      model: "deepseek-chat",
+    };
+
+    expect(
+      resolveVoiceCallMaterializationModelSelection({
+        composerModelSelection,
+        fallbackModelSelection,
+      }),
+    ).toBe(composerModelSelection);
+  });
+
+  it("uses the placeholder model only when the composer is unavailable", () => {
+    expect(
+      resolveVoiceCallMaterializationModelSelection({
+        composerModelSelection: null,
+        fallbackModelSelection,
+      }),
+    ).toBe(fallbackModelSelection);
   });
 });
 
