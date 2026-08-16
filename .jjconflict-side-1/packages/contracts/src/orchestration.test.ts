@@ -272,6 +272,7 @@ it.effect("decodes thread.turn.start defaults for provider and runtime mode", ()
         messageId: "msg-1",
         role: "user",
         text: "hello",
+        modality: "voice",
         attachments: [],
       },
       createdAt: "2026-01-01T00:00:00.000Z",
@@ -279,6 +280,7 @@ it.effect("decodes thread.turn.start defaults for provider and runtime mode", ()
     assert.strictEqual(parsed.modelSelection, undefined);
     assert.strictEqual(parsed.runtimeMode, DEFAULT_RUNTIME_MODE);
     assert.strictEqual(parsed.interactionMode, DEFAULT_PROVIDER_INTERACTION_MODE);
+    assert.strictEqual(parsed.message.modality, "voice");
   }),
 );
 

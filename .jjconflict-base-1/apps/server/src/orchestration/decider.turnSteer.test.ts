@@ -87,6 +87,7 @@ it.layer(NodeServices.layer)("thread turn steer decider", (it) => {
             messageId: MessageId.make("message-steer"),
             role: "user",
             text: "Focus on the failing tests.",
+            modality: "voice",
             attachments: [],
           },
           createdAt: NOW,
@@ -108,6 +109,7 @@ it.layer(NodeServices.layer)("thread turn steer decider", (it) => {
         throw new Error("Expected message and steer events.");
       }
       expect(message.payload.turnId).toBe(ACTIVE_TURN_ID);
+      expect(message.payload.modality).toBe("voice");
       expect(steer.payload.expectedTurnId).toBe(ACTIVE_TURN_ID);
       expect(steer.payload.clientUserMessageId).toBe("message-steer");
     }),

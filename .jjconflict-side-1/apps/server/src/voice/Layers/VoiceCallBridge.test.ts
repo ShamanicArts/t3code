@@ -167,6 +167,26 @@ describe("VoiceCallBridge", () => {
     ),
   );
 
+  it.effect("does not persist standalone transport narration as a durable exchange", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const test = yield* makeTestLayer;
+        const bridge = yield* VoiceCallBridge.pipe(Effect.provide(test.layer));
+        const result = yield* bridge.ingestTranscript({
+          session: callSession,
+          itemId: VoiceTranscriptItemId.make("assistant-narration-only"),
+          role: "assistant",
+          text: "I’m still checking the current result.",
+          occurredAt: now,
+          activeTranscript: [],
+        });
+
+        assert.isTrue(result.accepted);
+        assert.isEmpty(yield* Ref.get(test.commands));
+      }),
+    ),
+  );
+
   it.effect("dispatches one ordinary turn to the exact owner for duplicate handoffs", () =>
     Effect.scoped(
       Effect.gen(function* () {
@@ -202,6 +222,7 @@ describe("VoiceCallBridge", () => {
             messageId: command.message.messageId,
             role: "user",
             text: "Check the exact thread.",
+            modality: "voice",
             attachments: [],
           },
           modelSelection: thread.modelSelection,
