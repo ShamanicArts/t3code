@@ -1,0 +1,2402 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Voice Presence Lab</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --page: oklch(0.105 0.008 255);
+        --panel: oklch(0.135 0.009 255);
+        --surface: oklch(0.16 0.01 255);
+        --surface-raised: oklch(0.19 0.011 255);
+        --line: oklch(0.34 0.012 255 / 0.52);
+        --line-strong: oklch(0.5 0.012 255 / 0.5);
+        --ink: oklch(0.93 0.009 245);
+        --muted: oklch(0.69 0.015 250);
+        --quiet: oklch(0.54 0.012 250);
+        --accent: oklch(0.67 0.045 225);
+        --accent-secondary: oklch(0.82 0.035 92);
+        --accent-ink: oklch(0.18 0.02 235);
+        --danger: oklch(0.67 0.12 28);
+        --focus: oklch(0.79 0.07 215);
+        --radius: 13px;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        font-synthesis: none;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        min-height: 100%;
+      }
+
+      html {
+        scrollbar-gutter: stable;
+      }
+
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--ink);
+        overflow-x: hidden;
+        overflow-y: auto;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button {
+        color: inherit;
+      }
+
+      button:focus-visible,
+      input:focus-visible {
+        outline: 2px solid var(--focus);
+        outline-offset: 2px;
+      }
+
+      .lab {
+        display: grid;
+        grid-template-columns: 324px minmax(0, 1fr);
+        min-height: 100dvh;
+        align-items: start;
+      }
+
+      .inspector {
+        display: flex;
+        min-height: 100dvh;
+        flex-direction: column;
+        border-right: 1px solid var(--line);
+        background: var(--panel);
+      }
+
+      .inspector-header {
+        padding: 23px 20px 18px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .eyebrow {
+        margin: 0 0 7px;
+        color: var(--quiet);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 19px;
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+      }
+
+      .intro {
+        max-width: 31ch;
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .inspector-scroll {
+        padding: 18px 16px 26px;
+      }
+
+      .tool-group + .tool-group {
+        margin-top: 24px;
+        padding-top: 21px;
+        border-top: 1px solid var(--line);
+      }
+
+      .tool-heading {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-bottom: 11px;
+      }
+
+      .tool-heading h2 {
+        margin: 0;
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .tool-heading output {
+        color: var(--quiet);
+        font:
+          11px/1.2 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+      }
+
+      .primary-button,
+      .secondary-button,
+      .phase-button,
+      .quality-button,
+      .palette-button,
+      .seed-button,
+      .icon-button {
+        border: 1px solid var(--line-strong);
+        background: var(--surface);
+        cursor: pointer;
+        transition:
+          background-color 160ms ease,
+          border-color 160ms ease,
+          color 160ms ease,
+          transform 160ms ease;
+      }
+
+      .primary-button:active,
+      .secondary-button:active,
+      .phase-button:active,
+      .quality-button:active,
+      .palette-button:active,
+      .seed-button:active,
+      .icon-button:active {
+        transform: translateY(1px);
+      }
+
+      .primary-button {
+        width: 100%;
+        min-height: 39px;
+        border-color: color-mix(in oklab, var(--accent) 74%, transparent);
+        border-radius: 9px;
+        background: var(--accent);
+        color: var(--accent-ink);
+        font-size: 12px;
+        font-weight: 750;
+      }
+
+      .primary-button:hover {
+        background: color-mix(in oklab, var(--accent) 86%, var(--ink));
+      }
+
+      .secondary-button {
+        width: 100%;
+        min-height: 36px;
+        margin-top: 8px;
+        border-radius: 9px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .secondary-button:hover {
+        background: var(--surface-raised);
+        color: var(--ink);
+      }
+
+      .phase-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+      }
+
+      .quality-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        margin-top: 14px;
+      }
+
+      .phase-button {
+        min-height: 32px;
+        border-radius: 8px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 620;
+      }
+
+      .phase-button:hover {
+        background: var(--surface-raised);
+        color: var(--ink);
+      }
+
+      .phase-button[aria-pressed="true"] {
+        border-color: color-mix(in oklab, var(--accent) 64%, var(--line));
+        background: color-mix(in oklab, var(--accent) 14%, var(--surface));
+        color: var(--accent);
+      }
+
+      .quality-button {
+        min-height: 30px;
+        border-radius: 8px;
+        color: var(--quiet);
+        font-size: 10px;
+        font-weight: 650;
+      }
+
+      .quality-button:hover {
+        background: var(--surface-raised);
+        color: var(--ink);
+      }
+
+      .quality-button[aria-pressed="true"] {
+        border-color: color-mix(in oklab, var(--accent) 64%, var(--line));
+        background: color-mix(in oklab, var(--accent) 14%, var(--surface));
+        color: var(--accent);
+      }
+
+      .seed-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 7px;
+      }
+
+      .identity-sources {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 7px;
+        margin-bottom: 9px;
+      }
+
+      .identity-source label {
+        display: block;
+        margin: 0 1px 6px;
+        color: var(--quiet);
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .identity-source select {
+        width: 100%;
+        height: 34px;
+        border: 1px solid var(--line-strong);
+        border-radius: 8px;
+        background: var(--surface);
+        padding: 0 9px;
+        color: var(--ink);
+        font: inherit;
+      }
+
+      .identity-recipe {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1px;
+        overflow: hidden;
+        margin: 9px 0 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--line);
+      }
+
+      .identity-layer {
+        min-width: 0;
+        background: var(--surface);
+        padding: 8px;
+      }
+
+      .identity-layer small,
+      .identity-layer strong {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .identity-layer small {
+        margin-bottom: 3px;
+        color: var(--quiet);
+        font-size: 8px;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+      }
+
+      .identity-layer strong {
+        color: var(--muted);
+        font-size: 9px;
+        font-weight: 650;
+      }
+
+      .seed-input {
+        min-width: 0;
+        height: 36px;
+        border: 1px solid var(--line-strong);
+        border-radius: 8px;
+        background: var(--surface);
+        padding: 0 10px;
+        color: var(--ink);
+        font:
+          11px/1 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+      }
+
+      .seed-input::selection {
+        background: color-mix(in oklab, var(--accent) 42%, transparent);
+      }
+
+      .seed-button {
+        min-width: 72px;
+        border-radius: 8px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 650;
+      }
+
+      .seed-button:hover {
+        background: var(--surface-raised);
+        color: var(--ink);
+      }
+
+      .identity-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 9px 1px 12px;
+        color: var(--quiet);
+        font-size: 10px;
+      }
+
+      .identity-code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      .palette-list {
+        display: grid;
+        gap: 5px;
+      }
+
+      .palette-button {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr) auto;
+        min-height: 38px;
+        align-items: center;
+        gap: 9px;
+        border-radius: 8px;
+        padding: 0 9px;
+        color: var(--muted);
+        text-align: left;
+      }
+
+      .palette-button:hover {
+        background: var(--surface-raised);
+        color: var(--ink);
+      }
+
+      .palette-button[aria-pressed="true"] {
+        border-color: color-mix(in oklab, var(--accent) 54%, var(--line));
+        background: color-mix(in oklab, var(--accent) 9%, var(--surface));
+        color: var(--ink);
+      }
+
+      .palette-swatch {
+        display: flex;
+        width: 34px;
+        height: 16px;
+        align-items: center;
+      }
+
+      .palette-swatch i {
+        width: 19px;
+        height: 16px;
+        border: 1px solid oklch(0.9 0.01 250 / 0.18);
+        border-radius: 50%;
+      }
+
+      .palette-swatch i + i {
+        margin-left: -5px;
+      }
+
+      .palette-name {
+        font-size: 11px;
+        font-weight: 650;
+      }
+
+      .palette-theory {
+        color: var(--quiet);
+        font-size: 9px;
+      }
+
+      .range-row + .range-row {
+        margin-top: 14px;
+      }
+
+      .range-label {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-bottom: 7px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .range-label output {
+        color: var(--quiet);
+        font:
+          10px/1 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+      }
+
+      input[type="range"] {
+        width: 100%;
+        height: 16px;
+        margin: 0;
+        accent-color: var(--accent);
+      }
+
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        min-height: 31px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .switch {
+        position: relative;
+        width: 31px;
+        height: 18px;
+        flex: none;
+      }
+
+      .switch input {
+        position: absolute;
+        opacity: 0;
+      }
+
+      .switch-track {
+        position: absolute;
+        inset: 0;
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        background: var(--surface-raised);
+        transition: background-color 180ms ease;
+      }
+
+      .switch-track::after {
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--muted);
+        content: "";
+        transition:
+          transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+          background-color 180ms ease;
+      }
+
+      .switch input:checked + .switch-track {
+        border-color: color-mix(in oklab, var(--accent) 55%, var(--line));
+        background: color-mix(in oklab, var(--accent) 25%, var(--surface));
+      }
+
+      .switch input:checked + .switch-track::after {
+        transform: translateX(13px);
+        background: var(--accent);
+      }
+
+      .switch input:focus-visible + .switch-track {
+        outline: 2px solid var(--focus);
+        outline-offset: 2px;
+      }
+
+      .stage {
+        position: sticky;
+        top: 0;
+        display: grid;
+        height: 100dvh;
+        min-width: 0;
+        align-self: start;
+        place-items: center;
+        padding: 26px;
+        background:
+          linear-gradient(var(--line) 1px, transparent 1px),
+          linear-gradient(90deg, var(--line) 1px, transparent 1px), var(--page);
+        background-size: 32px 32px;
+      }
+
+      .device-wrap {
+        width: min(432px, 100%);
+      }
+
+      .viewport-label {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 0 3px 9px;
+        color: var(--quiet);
+        font:
+          10px/1.2 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+      }
+
+      .voice-surface {
+        position: relative;
+        display: flex;
+        height: min(760px, calc(100dvh - 78px));
+        min-height: 560px;
+        flex-direction: column;
+        overflow: hidden;
+        border: 1px solid var(--line-strong);
+        border-radius: 16px;
+        background: oklch(0.105 0.008 255);
+        box-shadow: 0 28px 76px oklch(0.03 0.01 255 / 0.48);
+      }
+
+      #presence {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+
+      .surface-content {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        min-height: 0;
+        flex: 1;
+        flex-direction: column;
+      }
+
+      .app-bar {
+        display: flex;
+        height: 45px;
+        flex: none;
+        align-items: center;
+        gap: 9px;
+        padding: 0 14px;
+        border-bottom: 1px solid var(--line);
+        background: oklch(0.105 0.008 255 / 0.82);
+      }
+
+      .app-mark {
+        display: grid;
+        width: 22px;
+        height: 22px;
+        place-items: center;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        color: var(--accent);
+      }
+
+      .app-title {
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .app-state {
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .mode-switch {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        margin: 12px 13px 0;
+        padding: 3px;
+        border-radius: 9px;
+        background: oklch(0.18 0.01 255 / 0.72);
+      }
+
+      .mode-option {
+        min-height: 40px;
+        border: 0;
+        border-radius: 7px;
+        background: transparent;
+        color: var(--quiet);
+        font-size: 11px;
+        font-weight: 650;
+      }
+
+      .mode-option span {
+        display: block;
+        margin-top: 2px;
+        color: var(--quiet);
+        font-size: 9px;
+        font-weight: 500;
+      }
+
+      .mode-option.active {
+        background: oklch(0.12 0.008 255);
+        color: var(--ink);
+        box-shadow: 0 1px 3px oklch(0.03 0.01 255 / 0.35);
+      }
+
+      .call-context {
+        display: flex;
+        flex: none;
+        align-items: flex-start;
+        gap: 11px;
+        padding: 16px 16px 14px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .call-icon {
+        display: grid;
+        width: 32px;
+        height: 32px;
+        flex: none;
+        place-items: center;
+        border-radius: 50%;
+        background: color-mix(in oklab, var(--accent) 12%, transparent);
+        color: var(--accent);
+      }
+
+      .call-copy {
+        min-width: 0;
+        flex: 1;
+      }
+
+      .call-kicker {
+        margin: 0 0 3px;
+        color: var(--accent);
+        font-size: 9px;
+        font-weight: 750;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .call-copy h2 {
+        overflow: hidden;
+        margin: 0;
+        font-size: 13px;
+        font-weight: 700;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .call-copy p:last-child {
+        overflow: hidden;
+        margin: 3px 0 0;
+        color: var(--muted);
+        font-size: 10px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .ownership {
+        margin-top: 3px;
+        color: var(--accent);
+        font-size: 9px;
+        font-weight: 650;
+      }
+
+      .call-body {
+        display: flex;
+        min-height: 0;
+        flex: 1;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        padding: 24px 28px clamp(48px, 9vh, 76px);
+        text-align: center;
+      }
+
+      .temporal {
+        display: grid;
+        width: 100%;
+        min-height: 112px;
+        place-items: start center;
+      }
+
+      .temporal-inner {
+        width: 100%;
+        max-width: 330px;
+        transition: text-align 220ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      .voice-surface[data-turn="user"] .temporal-inner {
+        text-align: left;
+      }
+
+      .voice-surface[data-turn="assistant"] .temporal-inner {
+        text-align: right;
+      }
+
+      .voice-surface[data-turn="user"] {
+        --turn-color: var(--accent-secondary);
+      }
+
+      .voice-surface[data-turn="assistant"] {
+        --turn-color: var(--accent);
+      }
+
+      .speaker-label {
+        display: inline-flex;
+        min-height: 24px;
+        align-items: center;
+        gap: 7px;
+        margin: 0;
+        border: 1px solid color-mix(in oklab, var(--turn-color, var(--accent)) 38%, var(--line));
+        border-radius: 999px;
+        background: color-mix(in oklab, var(--turn-color, var(--accent)) 11%, transparent);
+        padding: 0 9px;
+        color: var(--turn-color, var(--accent));
+        font-size: 9px;
+        font-weight: 750;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        transition:
+          color 500ms ease,
+          background-color 500ms ease,
+          border-color 500ms ease;
+      }
+
+      .speaker-label::before {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: currentColor;
+        box-shadow: 0 0 12px currentColor;
+        content: "";
+      }
+
+      .transcript {
+        min-height: 45px;
+        margin: 7px 0 0;
+        color: var(--ink);
+        font-size: 14px;
+        line-height: 1.55;
+        text-wrap: balance;
+      }
+
+      .activity-note {
+        display: flex;
+        min-height: 21px;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        margin-top: 9px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .activity-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--turn-color, var(--accent));
+        transition: background-color 500ms ease;
+      }
+
+      .activity-dot.pulse {
+        animation: pulse 1.25s ease-in-out infinite;
+      }
+
+      @keyframes pulse {
+        50% {
+          opacity: 0.3;
+          transform: scale(0.72);
+        }
+      }
+
+      .call-footer {
+        flex: none;
+        padding: 0 20px 19px;
+      }
+
+      .call-status {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        margin-bottom: 12px;
+        font-size: 10px;
+      }
+
+      .status-light {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--turn-color, var(--accent));
+        box-shadow: 0 0 13px color-mix(in oklab, var(--turn-color, var(--accent)) 45%, transparent);
+        transition: background-color 500ms ease;
+      }
+
+      .timer {
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .call-actions {
+        display: flex;
+        width: min(280px, 100%);
+        align-items: center;
+        justify-content: space-between;
+        margin: 0 auto;
+        padding: 0 12px;
+      }
+
+      .icon-button {
+        display: grid;
+        width: 42px;
+        height: 42px;
+        place-items: center;
+        border-radius: 50%;
+        background: oklch(0.105 0.008 255 / 0.46);
+        color: var(--muted);
+      }
+
+      .icon-button:hover {
+        background: oklch(0.19 0.012 255 / 0.72);
+        color: var(--ink);
+      }
+
+      .icon-button.primary {
+        width: 62px;
+        height: 62px;
+        border-color: color-mix(in oklab, var(--ink) 38%, transparent);
+        color: var(--ink);
+      }
+
+      .icon-button.muted {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .icon-button.end:hover {
+        border-color: color-mix(in oklab, var(--danger) 55%, transparent);
+        color: var(--danger);
+      }
+
+      .start-state {
+        display: none;
+        min-height: 0;
+        flex: 1;
+        align-items: center;
+        justify-content: center;
+        padding: 30px;
+        text-align: center;
+      }
+
+      .start-state p {
+        max-width: 29ch;
+        margin: 0 auto 16px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .voice-surface[data-phase="idle"] .call-body,
+      .voice-surface[data-phase="idle"] .call-footer {
+        display: none;
+      }
+
+      .voice-surface[data-phase="idle"] .start-state {
+        display: flex;
+      }
+
+      .start-call {
+        width: auto;
+        min-width: 142px;
+        padding: 0 18px;
+      }
+
+      .icon {
+        width: 17px;
+        height: 17px;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+      }
+
+      .icon.small {
+        width: 14px;
+        height: 14px;
+      }
+
+      .button-content {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      .render-note {
+        margin: 9px 2px 0;
+        color: var(--quiet);
+        font-size: 10px;
+        line-height: 1.45;
+      }
+
+      .control-hint {
+        margin: 7px 1px 0;
+        color: var(--quiet);
+        font-size: 9px;
+        line-height: 1.45;
+      }
+
+      @media (max-width: 760px) {
+        .lab {
+          grid-template-columns: 1fr;
+        }
+
+        .stage {
+          position: relative;
+          grid-row: 1;
+          height: auto;
+          min-height: 100dvh;
+          padding: 16px;
+        }
+
+        .inspector {
+          grid-row: 2;
+          border-top: 1px solid var(--line);
+          border-right: 0;
+        }
+
+        .voice-surface {
+          height: calc(100dvh - 48px);
+          min-height: 540px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="lab">
+      <aside class="inspector" aria-label="Voice presence controls">
+        <header class="inspector-header">
+          <p class="eyebrow">Isolated experiment</p>
+          <h1>Voice presence lab</h1>
+          <p class="intro">
+            Tune the material while a synthetic call runs through transcription, work, and reply.
+          </p>
+        </header>
+
+        <div class="inspector-scroll">
+          <section class="tool-group">
+            <div class="tool-heading">
+              <h2>Demo</h2>
+              <output id="demo-status">ready</output>
+            </div>
+            <button class="primary-button" id="run-demo" type="button">
+              <span class="button-content">
+                <svg class="icon small" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m8 5 11 7-11 7Z" />
+                </svg>
+                Run user → AI sequence
+              </span>
+            </button>
+            <button class="secondary-button" id="play-reply" type="button">
+              Play dummy AI reply
+            </button>
+          </section>
+
+          <section class="tool-group">
+            <div class="tool-heading">
+              <h2>Call identity</h2>
+              <output id="identity-output">gaslight</output>
+            </div>
+            <div class="identity-sources">
+              <div class="identity-source">
+                <label for="provider-select">Provider</label>
+                <select id="provider-select">
+                  <option value="codex">Codex</option>
+                  <option value="claudeAgent">Claude</option>
+                  <option value="cursor">Cursor</option>
+                  <option value="opencode">OpenCode</option>
+                </select>
+              </div>
+              <div class="identity-source">
+                <label for="project-select">Project</label>
+                <select id="project-select">
+                  <option value="shuv2code">Shuv2Code</option>
+                  <option value="infra">Infrastructure</option>
+                  <option value="studio">Studio</option>
+                  <option value="none">No project color</option>
+                </select>
+              </div>
+            </div>
+            <div class="seed-row">
+              <input
+                class="seed-input"
+                id="call-seed"
+                type="text"
+                value="voice-experiment"
+                spellcheck="false"
+                aria-label="Call identity seed"
+              />
+              <button class="seed-button" id="apply-seed" type="button">Apply</button>
+            </div>
+            <div class="identity-meta">
+              <span id="palette-theory-label">warm analogous</span>
+              <span class="identity-code" id="identity-code">00000000</span>
+            </div>
+            <div class="identity-recipe" aria-label="Identity color recipe">
+              <span class="identity-layer"
+                ><small>Provider</small><strong id="provider-layer">Codex</strong></span
+              >
+              <span class="identity-layer"
+                ><small>Project</small><strong id="project-layer">Shuv2Code</strong></span
+              >
+              <span class="identity-layer"
+                ><small>Thread</small><strong id="thread-layer">±0° hue</strong></span
+              >
+            </div>
+            <div class="palette-list" id="palette-list" aria-label="Color pairings"></div>
+            <button class="secondary-button" id="next-call" type="button">
+              Randomize thread identity
+            </button>
+          </section>
+
+          <section class="tool-group">
+            <div class="tool-heading">
+              <h2>Phase</h2>
+              <output id="phase-output">idle</output>
+            </div>
+            <div class="phase-grid" id="phase-controls">
+              <button class="phase-button" type="button" data-set-phase="idle" aria-pressed="true">
+                Idle
+              </button>
+              <button
+                class="phase-button"
+                type="button"
+                data-set-phase="listening"
+                aria-pressed="false"
+              >
+                User speaking
+              </button>
+              <button
+                class="phase-button"
+                type="button"
+                data-set-phase="thinking"
+                aria-pressed="false"
+              >
+                AI working
+              </button>
+              <button
+                class="phase-button"
+                type="button"
+                data-set-phase="speaking"
+                aria-pressed="false"
+              >
+                AI response
+              </button>
+              <button
+                class="phase-button"
+                type="button"
+                data-set-phase="muted"
+                aria-pressed="false"
+              >
+                Muted
+              </button>
+            </div>
+          </section>
+
+          <section class="tool-group">
+            <div class="tool-heading"><h2>Motion</h2></div>
+            <div class="range-row">
+              <label class="range-label" for="activity"
+                >Speech energy <output id="activity-output">auto</output></label
+              >
+              <input id="activity" type="range" min="0" max="1" value="0.42" step="0.01" />
+            </div>
+            <div class="range-row">
+              <label class="range-label" for="flow"
+                >Flow speed <output id="flow-output">1.00</output></label
+              >
+              <input id="flow" type="range" min="0.2" max="2.2" value="1" step="0.01" />
+            </div>
+            <div class="range-row">
+              <label class="range-label" for="vorticity"
+                >Vorticity <output id="vorticity-output">1.00</output></label
+              >
+              <input id="vorticity" type="range" min="0" max="2.4" value="1" step="0.01" />
+            </div>
+            <div class="range-row">
+              <label class="range-label" for="turbulence"
+                >Turbulence <output id="turbulence-output">1.00</output></label
+              >
+              <input id="turbulence" type="range" min="0.35" max="2" value="1" step="0.01" />
+            </div>
+            <div class="range-row">
+              <label class="range-label" for="curl"
+                >Curl radius <output id="curl-output">1.00</output></label
+              >
+              <input id="curl" type="range" min="0.45" max="1.8" value="1" step="0.01" />
+            </div>
+          </section>
+
+          <section class="tool-group">
+            <div class="tool-heading"><h2>Composition</h2></div>
+            <div class="range-row">
+              <label class="range-label" for="position-x"
+                >Horizontal <output id="position-x-output">0.00</output></label
+              >
+              <input id="position-x" type="range" min="-0.45" max="0.45" value="0" step="0.01" />
+            </div>
+            <div class="range-row">
+              <label class="range-label" for="position-y"
+                >Vertical <output id="position-y-output">0.00</output></label
+              >
+              <input id="position-y" type="range" min="-0.35" max="0.35" value="0" step="0.01" />
+            </div>
+            <div class="range-row">
+              <label class="range-label" for="scale"
+                >Scale <output id="scale-output">1.00</output></label
+              >
+              <input id="scale" type="range" min="0.6" max="1.5" value="1" step="0.01" />
+            </div>
+            <div class="range-row">
+              <label class="range-label" for="tilt"
+                >Tilt <output id="tilt-output">0.00</output></label
+              >
+              <input id="tilt" type="range" min="-0.7" max="0.7" value="0" step="0.01" />
+            </div>
+            <div class="range-row">
+              <label class="range-label" for="spread"
+                >Plume spread <output id="spread-output">1.00</output></label
+              >
+              <input id="spread" type="range" min="0.55" max="1.65" value="1" step="0.01" />
+            </div>
+          </section>
+
+          <section class="tool-group">
+            <div class="tool-heading"><h2>Material</h2></div>
+            <div class="range-row">
+              <label class="range-label" for="detail"
+                >Mineral detail <output id="detail-output">1.00</output></label
+              >
+              <input id="detail" type="range" min="0.35" max="1.8" value="1" step="0.01" />
+            </div>
+            <div class="range-row">
+              <label class="range-label" for="light"
+                >Light intensity <output id="light-output">1.00</output></label
+              >
+              <input id="light" type="range" min="0.55" max="1.6" value="1" step="0.01" />
+              <p class="control-hint">Fixed grazing light, matching the running app.</p>
+            </div>
+            <div class="quality-grid" id="quality-controls" aria-label="Render quality">
+              <button
+                class="quality-button"
+                type="button"
+                data-quality="adaptive"
+                aria-pressed="true"
+              >
+                Adaptive
+              </button>
+              <button
+                class="quality-button"
+                type="button"
+                data-quality="efficient"
+                aria-pressed="false"
+              >
+                Efficient
+              </button>
+              <button
+                class="quality-button"
+                type="button"
+                data-quality="crisp"
+                aria-pressed="false"
+              >
+                Crisp
+              </button>
+            </div>
+            <p class="render-note" id="render-note">Starting adaptive renderer…</p>
+          </section>
+
+          <section class="tool-group">
+            <div class="tool-heading"><h2>Playback</h2></div>
+            <label class="toggle-row">
+              <span>Loop the synthetic call</span>
+              <span class="switch"
+                ><input id="loop-demo" type="checkbox" /><span class="switch-track"></span
+              ></span>
+            </label>
+            <label class="toggle-row">
+              <span>Animate material</span>
+              <span class="switch"
+                ><input id="animate-material" type="checkbox" checked /><span
+                  class="switch-track"
+                ></span
+              ></span>
+            </label>
+            <label class="toggle-row">
+              <span>Play spoken demo</span>
+              <span class="switch"
+                ><input id="audio-cue" type="checkbox" /><span class="switch-track"></span
+              ></span>
+            </label>
+          </section>
+        </div>
+      </aside>
+
+      <section class="stage" aria-label="Voice call preview">
+        <div class="device-wrap">
+          <div class="viewport-label">
+            <span>CALL SURFACE</span><span id="viewport-quality">420 × adaptive</span>
+          </div>
+          <article class="voice-surface" id="voice-surface" data-phase="idle" data-turn="none">
+            <canvas id="presence" aria-hidden="true"></canvas>
+            <div class="surface-content">
+              <header class="app-bar">
+                <span class="app-mark" aria-hidden="true">
+                  <svg class="icon small" viewBox="0 0 24 24">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3" />
+                  </svg>
+                </span>
+                <span class="app-title">Voice</span>
+                <span class="app-state" id="app-state">Ready</span>
+              </header>
+
+              <nav class="mode-switch" aria-label="Voice mode">
+                <button class="mode-option" type="button" tabindex="-1">
+                  Controller<span>All threads</span>
+                </button>
+                <button class="mode-option active" type="button" aria-current="page">
+                  Call<span>This thread</span>
+                </button>
+              </nav>
+
+              <header class="call-context">
+                <div class="call-icon" aria-hidden="true">
+                  <svg class="icon small" viewBox="0 0 24 24">
+                    <path
+                      d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.68 2.8a2 2 0 0 1-.45 2.11L8.07 9.9a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.32 1.85.55 2.81.68A2 2 0 0 1 22 16.92Z"
+                    />
+                  </svg>
+                </div>
+                <div class="call-copy">
+                  <p class="call-kicker">Call thread</p>
+                  <h2 id="call-title">Voice presentation experiment</h2>
+                  <p>shuv2code · Dummy turns stay in this page</p>
+                </div>
+                <span class="ownership">Thread-owned</span>
+              </header>
+
+              <div class="start-state">
+                <div>
+                  <p>
+                    Run a synthetic turn to see transcription and reply activity shape the material.
+                  </p>
+                  <button class="primary-button start-call" id="start-call" type="button">
+                    <span class="button-content">
+                      <svg class="icon small" viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.68 2.8a2 2 0 0 1-.45 2.11L8.07 9.9a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.32 1.85.55 2.81.68A2 2 0 0 1 22 16.92Z"
+                        />
+                      </svg>
+                      Start user → AI demo
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="call-body">
+                <div class="temporal" aria-live="polite">
+                  <div class="temporal-inner">
+                    <p class="speaker-label" id="speaker-label">Your live transcript</p>
+                    <p class="transcript" id="transcript">Listening…</p>
+                    <div class="activity-note" id="activity-note">
+                      <span class="activity-dot"></span>
+                      <span>Microphone ready</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <footer class="call-footer">
+                <div class="call-status">
+                  <span class="status-light"></span>
+                  <strong id="status-label">Listening</strong>
+                  <span class="timer" id="timer">00:00</span>
+                </div>
+                <div class="call-actions">
+                  <button
+                    class="icon-button"
+                    id="speaker-button"
+                    type="button"
+                    aria-label="Toggle speaker"
+                  >
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M11 5 6 9H2v6h4l5 4Z" />
+                      <path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" />
+                    </svg>
+                  </button>
+                  <button
+                    class="icon-button primary"
+                    id="mute-button"
+                    type="button"
+                    aria-label="Mute"
+                  >
+                    <svg class="icon mic-icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3" />
+                    </svg>
+                  </button>
+                  <button
+                    class="icon-button end"
+                    id="end-button"
+                    type="button"
+                    aria-label="End call"
+                  >
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="m10.68 13.31-3.21 3.21a16 16 0 0 1-3.25-5.45l4.05-1.16a2 2 0 0 1 2.04.59l.37.42a2 2 0 0 1 0 2.39ZM13.32 13.31l3.21 3.21a16 16 0 0 0 3.25-5.45l-4.05-1.16a2 2 0 0 0-2.04.59l-.37.42a2 2 0 0 0 0 2.39ZM4 6.5c4.91-3.33 11.09-3.33 16 0"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </footer>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const VERTEX_SHADER = `
+        attribute vec2 a_position;
+        void main() { gl_Position = vec4(a_position, 0.0, 1.0); }
+      `;
+
+      const FRAGMENT_SHADER = `
+        #extension GL_OES_standard_derivatives : enable
+        precision highp float;
+
+        uniform vec2 u_resolution;
+        uniform float u_displayAspect;
+        uniform float u_time;
+        uniform vec3 u_primary;
+        uniform vec3 u_secondary;
+        uniform float u_energy;
+        uniform float u_voice;
+        uniform float u_phaseMix;
+        uniform float u_flowSpeed;
+        uniform float u_vorticity;
+        uniform float u_turbulence;
+        uniform float u_curl;
+        uniform vec2 u_position;
+        uniform float u_scale;
+        uniform float u_tilt;
+        uniform float u_spread;
+        uniform float u_detail;
+        uniform float u_brightness;
+
+        float hash(vec2 p) {
+          p = fract(p * vec2(123.34, 345.45));
+          p += dot(p, p + 34.345);
+          return fract(p.x * p.y);
+        }
+
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+            mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+        }
+
+        float fbm(vec2 p) {
+          float value = 0.0;
+          float amplitude = 0.5;
+          mat2 rotation = mat2(0.80, 0.60, -0.60, 0.80);
+          for (int octave = 0; octave < 3; octave++) {
+            value += amplitude * noise(p);
+            p = rotation * p * 2.03 + 17.17;
+            amplitude *= 0.5;
+          }
+          return value;
+        }
+
+        void main() {
+          vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+          vec2 p = vec2((uv.x - 0.5) * u_displayAspect, uv.y - 0.5) - u_position;
+          float tiltSin = sin(u_tilt);
+          float tiltCos = cos(u_tilt);
+          p = mat2(tiltCos, -tiltSin, tiltSin, tiltCos) * p / u_scale;
+          vec2 fieldUv = vec2(p.x / u_displayAspect + 0.5, p.y + 0.5);
+          float time = u_time * 0.14 * u_flowSpeed;
+          float breath = u_voice * 0.032;
+
+          float driftA = fbm(p * (0.8 + u_turbulence * 0.54) + vec2(time * 0.11, -time * 0.075));
+          float driftB = fbm(p * (1.15 + u_turbulence * 0.76) + vec2(driftA * 1.42, -driftA * 1.16) - time * 0.065);
+          vec2 flow = vec2(driftA - 0.5, driftB - 0.5) * u_vorticity;
+          vec2 materialUv = p + flow * (0.12 + u_vorticity * 0.12);
+          float mass = fbm(materialUv * 2.6 + vec2(-time * 0.043, time * 0.031));
+          float marble = fbm(materialUv * (4.5 + u_detail * 1.2) + vec2(mass * 1.36, -driftB * 0.92));
+          float mineralGrain = fbm(materialUv * (7.6 + u_detail * 4.2) + vec2(marble * 1.08, -mass * 0.72));
+
+          float entryA = 0.08 + sin(time * 0.42 + 0.4) * 0.29;
+          float exitA = 0.88 + sin(time * 0.31 + 2.1) * 0.31;
+          float centerA = mix(entryA, exitA, fieldUv.y);
+          centerA += sin(fieldUv.y * 3.15 + time * 0.38) * 0.13;
+          centerA += sin(fieldUv.y * 6.4 - time * 0.21) * 0.035 + flow.x * 0.13;
+          centerA += sin(time * 0.24 + 1.7) * sin(fieldUv.y * 3.14159) * 0.19;
+
+          float entryB = 1.09 + sin(time * 0.27 + 1.8) * 0.22;
+          float exitB = 0.28 + sin(time * 0.37 + 3.4) * 0.28;
+          float centerB = mix(entryB, exitB, fieldUv.y);
+          centerB += sin(fieldUv.y * 4.3 - time * 0.29 + 1.1) * 0.105;
+          centerB += flow.y * 0.12;
+          centerB += cos(time * 0.2 + 0.5) * sin(fieldUv.y * 3.14159) * 0.13;
+
+          float centerC = -0.08 + fieldUv.y * 0.38;
+          centerC += sin(fieldUv.y * 2.7 + time * 0.24 + 4.2) * 0.16;
+          centerC += (mass - 0.5) * 0.14;
+
+          float widthA = (0.19 + (mass - 0.5) * 0.085 + breath) * u_spread;
+          float widthB = (0.24 + (driftB - 0.5) * 0.075 + breath * 0.7) * u_spread;
+          float widthC = (0.31 + (driftA - 0.5) * 0.1) * u_spread;
+          float plumeA = exp(-pow(abs(fieldUv.x - centerA) / widthA, 1.72));
+          float plumeB = exp(-pow(abs(fieldUv.x - centerB) / widthB, 1.58));
+          float plumeC = exp(-pow(abs(fieldUv.x - centerC) / widthC, 1.48));
+          float wispA = exp(-pow(abs(fieldUv.x - centerA - sin(fieldUv.y * 7.2 - time * 0.33) * 0.095) / 0.075, 1.48));
+          float wispB = exp(-pow(abs(fieldUv.x - centerB - sin(fieldUv.y * 5.8 + time * 0.28) * 0.12) / 0.105, 1.42));
+
+          float arcRadius = (0.39 + sin(time * 0.19 + 0.7) * 0.08) * u_curl;
+          vec2 arcCenter = vec2(0.16 + sin(time * 0.23 + 2.6) * 0.18, 0.43 + cos(time * 0.17) * 0.11);
+          float arcDistance = abs(length(vec2(fieldUv.x, fieldUv.y * 0.82) - arcCenter) - arcRadius);
+          float plumeArc = exp(-pow(arcDistance / (0.13 + breath * 0.55), 1.62));
+
+          float cloudTexture = fbm(materialUv * 4.15 + vec2(time * 0.018, -time * 0.026));
+          float density = plumeA * (0.45 + cloudTexture * 0.54);
+          density += plumeB * (0.09 + marble * 0.14);
+          density += plumeC * (0.16 + driftA * 0.23);
+          density += plumeArc * (0.14 + cloudTexture * 0.16);
+          density += wispA * (0.045 + marble * 0.055);
+          density += wispB * (0.028 + cloudTexture * 0.04);
+          density *= 0.83 + mass * 0.24;
+
+          float atmosphere = smoothstep(0.08, 0.72, density);
+          float body = smoothstep(0.31, 0.98, density);
+          float heart = smoothstep(0.64, 1.28, density);
+          float gradient = length(vec2(dFdx(density), dFdy(density)));
+          float silverLining = smoothstep(0.012, 0.095, gradient) * atmosphere;
+
+          float heightField = mass * 0.64 + marble * 0.27 + mineralGrain * 0.09;
+          vec3 normal = normalize(vec3(-dFdx(heightField) * 45.0, -dFdy(heightField) * 31.0, 1.0));
+          vec3 grazingDirection = normalize(vec3(-0.48, 0.23, 0.84));
+          float grazing = 0.18 + pow(max(dot(normal, grazingDirection), 0.0), 1.65) * 0.82;
+          float mineralVein = pow(1.0 - abs(mineralGrain * 2.0 - 1.0), 5.2);
+
+          float pairVariation = (marble - 0.5) * 0.12 + (fieldUv.y - 0.5) * 0.04;
+          float pairMix = clamp(u_phaseMix + pairVariation, 0.0, 1.0);
+          vec3 pairedAccent = mix(u_primary, u_secondary, pairMix);
+          vec3 background = mix(vec3(0.018, 0.022, 0.029), pairedAccent, 0.016);
+          vec3 graphite = vec3(0.145, 0.156, 0.17);
+          vec3 mineral = mix(graphite, pairedAccent, 0.22);
+          vec3 pearl = mix(vec3(0.78, 0.8, 0.79), mix(u_secondary, u_primary, heart), 0.24);
+          vec3 color = background;
+          color += mineral * (0.07 + mass * 0.19) * grazing;
+          color += mineral * atmosphere * (0.11 + marble * 0.14 + u_energy * 0.04);
+          color += pairedAccent * atmosphere * (0.075 + u_energy * 0.09 + u_voice * 0.06);
+          color += mix(pairedAccent, pearl, 0.38) * body * (0.1 + cloudTexture * 0.12 + u_energy * 0.09 + u_voice * 0.12);
+          color += pearl * heart * (0.075 + cloudTexture * 0.1 + u_voice * 0.14);
+          color += pearl * silverLining * (0.018 + u_energy * 0.022);
+          color += pearl * mineralVein * body * 0.015;
+
+          float shadowPocket = smoothstep(0.62, 0.92, marble) * atmosphere * (1.0 - heart);
+          color *= 1.0 - shadowPocket * 0.07;
+          float verticalFade = smoothstep(0.025, 0.16, uv.y) * (1.0 - smoothstep(0.83, 0.995, uv.y));
+          color = mix(background, color, 0.48 + verticalFade * 0.52);
+          vec2 vignetteUv = uv * (1.0 - uv.yx);
+          float vignette = pow(clamp(vignetteUv.x * vignetteUv.y * 18.0, 0.0, 1.0), 0.2);
+          color *= 0.72 + vignette * 0.28;
+          color += (hash(floor(gl_FragCoord.xy * 0.61)) - 0.5) * 0.0055;
+          gl_FragColor = vec4(color * u_brightness, 1.0);
+        }
+      `;
+
+      const PHASES = {
+        idle: {
+          energy: 0.16,
+          pairMix: 0.5,
+          turn: "none",
+          labLabel: "idle",
+          label: "Ready",
+        },
+        listening: {
+          energy: 0.38,
+          pairMix: 0.94,
+          turn: "user",
+          labLabel: "user speaking",
+          label: "Listening",
+        },
+        thinking: {
+          energy: 0.33,
+          pairMix: 0.5,
+          turn: "assistant",
+          labLabel: "AI working",
+          label: "Working",
+        },
+        speaking: {
+          energy: 0.46,
+          pairMix: 0.06,
+          turn: "assistant",
+          labLabel: "AI response",
+          label: "Speaking",
+        },
+        muted: {
+          energy: 0.06,
+          pairMix: 0.5,
+          turn: "none",
+          labLabel: "muted",
+          label: "Muted",
+        },
+      };
+
+      const PALETTES = [
+        {
+          id: "gaslight",
+          name: "Gaslight",
+          theory: "warm analogous",
+          primary: [0.72, 0.56, 0.28],
+          secondary: [0.88, 0.82, 0.65],
+          css: ["oklch(0.72 0.075 78)", "oklch(0.88 0.035 92)"],
+        },
+        {
+          id: "glacier",
+          name: "Glacier",
+          theory: "cool analogous",
+          primary: [0.22, 0.48, 0.68],
+          secondary: [0.28, 0.68, 0.58],
+          css: ["oklch(0.62 0.09 235)", "oklch(0.72 0.085 166)"],
+        },
+        {
+          id: "ember",
+          name: "Ember",
+          theory: "warm split",
+          primary: [0.82, 0.58, 0.18],
+          secondary: [0.72, 0.22, 0.16],
+          css: ["oklch(0.75 0.13 82)", "oklch(0.58 0.16 31)"],
+        },
+        {
+          id: "orchid",
+          name: "Orchid current",
+          theory: "complementary",
+          primary: [0.55, 0.32, 0.72],
+          secondary: [0.2, 0.64, 0.72],
+          css: ["oklch(0.61 0.12 304)", "oklch(0.72 0.085 210)"],
+        },
+        {
+          id: "verdigris",
+          name: "Verdigris",
+          theory: "complementary",
+          primary: [0.65, 0.35, 0.2],
+          secondary: [0.18, 0.59, 0.5],
+          css: ["oklch(0.6 0.1 47)", "oklch(0.66 0.075 169)"],
+        },
+        {
+          id: "night-bloom",
+          name: "Night bloom",
+          theory: "near analogous",
+          primary: [0.73, 0.27, 0.52],
+          secondary: [0.28, 0.25, 0.66],
+          css: ["oklch(0.62 0.15 345)", "oklch(0.5 0.13 286)"],
+        },
+        {
+          id: "aurora",
+          name: "Aurora",
+          theory: "split complementary",
+          primary: [0.32, 0.72, 0.6],
+          secondary: [0.63, 0.44, 0.78],
+          css: ["oklch(0.76 0.09 164)", "oklch(0.66 0.105 305)"],
+        },
+        {
+          id: "voltage",
+          name: "Voltage",
+          theory: "complementary",
+          primary: [0.86, 0.43, 0.12],
+          secondary: [0.12, 0.45, 0.82],
+          css: ["oklch(0.7 0.16 49)", "oklch(0.6 0.15 255)"],
+        },
+        {
+          id: "signal",
+          name: "Signal",
+          theory: "complementary",
+          primary: [0.86, 0.7, 0.12],
+          secondary: [0.42, 0.22, 0.76],
+          css: ["oklch(0.82 0.15 95)", "oklch(0.52 0.17 294)"],
+        },
+        {
+          id: "flare",
+          name: "Flare",
+          theory: "near-complementary",
+          primary: [0.82, 0.24, 0.18],
+          secondary: [0.12, 0.7, 0.68],
+          css: ["oklch(0.61 0.19 31)", "oklch(0.72 0.11 190)"],
+        },
+      ];
+
+      const PROVIDERS = {
+        codex: { label: "Codex", palette: "orchid" },
+        claudeAgent: { label: "Claude", palette: "voltage" },
+        cursor: { label: "Cursor", palette: "signal" },
+        opencode: { label: "OpenCode", palette: "flare" },
+      };
+      const PROJECTS = {
+        shuv2code: { label: "Shuv2Code", color: [0.72, 0.56, 0.28] },
+        infra: { label: "Infrastructure", color: [0.22, 0.58, 0.68] },
+        studio: { label: "Studio", color: [0.7, 0.3, 0.58] },
+        none: { label: "None", color: null },
+      };
+
+      const USER_SENTENCE =
+        "Can you check whether the voice call still feels calm while it is actively transcribing me?";
+      const AI_SENTENCE =
+        "Yes. The material is responding to speech without competing with the words, and it settles as soon as the turn finishes.";
+      const QUALITY_PROFILES = {
+        adaptive: { label: "Adaptive", scale: 0.78, fps: 30 },
+        efficient: { label: "Efficient", scale: 0.56, fps: 24 },
+        crisp: { label: "Crisp", scale: 1, fps: 30 },
+      };
+      const state = {
+        phase: "idle",
+        previousPhase: "listening",
+        identity: null,
+        activity: 0,
+        manualActivity: false,
+        flow: 1,
+        vorticity: 1,
+        turbulence: 1,
+        curl: 1,
+        positionX: 0,
+        positionY: 0,
+        scale: 1,
+        tilt: 0,
+        spread: 1,
+        detail: 1,
+        light: 1,
+        quality: "adaptive",
+        qualityRevision: 0,
+        animate: true,
+        demoToken: 0,
+        startedAt: 0,
+        timerId: 0,
+        audioContext: null,
+        audioPlayback: null,
+      };
+
+      const surface = document.querySelector("#voice-surface");
+      const transcript = document.querySelector("#transcript");
+      const speakerLabel = document.querySelector("#speaker-label");
+      const activityNote = document.querySelector("#activity-note");
+      const statusLabel = document.querySelector("#status-label");
+      const appState = document.querySelector("#app-state");
+      const phaseOutput = document.querySelector("#phase-output");
+      const demoStatus = document.querySelector("#demo-status");
+      const identityOutput = document.querySelector("#identity-output");
+      const identityCode = document.querySelector("#identity-code");
+      const paletteTheoryLabel = document.querySelector("#palette-theory-label");
+      const callSeedInput = document.querySelector("#call-seed");
+      const providerSelect = document.querySelector("#provider-select");
+      const projectSelect = document.querySelector("#project-select");
+      const callTitle = document.querySelector("#call-title");
+      const timer = document.querySelector("#timer");
+      const muteButton = document.querySelector("#mute-button");
+
+      const wait = (milliseconds) =>
+        new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+
+      function hashSeed(value) {
+        let hash = 2166136261;
+        for (let index = 0; index < value.length; index += 1) {
+          hash ^= value.charCodeAt(index);
+          hash = Math.imul(hash, 16777619);
+        }
+        return hash >>> 0;
+      }
+
+      function makeRandom(seed) {
+        return () => {
+          seed += 0x6d2b79f5;
+          let value = seed;
+          value = Math.imul(value ^ (value >>> 15), value | 1);
+          value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+          return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      function between(random, minimum, maximum) {
+        return minimum + (maximum - minimum) * random();
+      }
+
+      function clampChannel(value) {
+        return Math.min(0.94, Math.max(0.06, value));
+      }
+
+      function composeIdentityPalette(base, project, hueShift) {
+        const projectMix = project.color ? 0.13 : 0;
+        const shift = hueShift / 180;
+        const tint = (color, direction) =>
+          color.map((channel, index) => {
+            const projectChannel = project.color?.[index] ?? channel;
+            const blended = channel * (1 - projectMix) + projectChannel * projectMix;
+            const offsets = [0.42, -0.28, 0.36];
+            return clampChannel(blended + shift * offsets[index] * direction);
+          });
+        const primary = tint(base.primary, 1);
+        const secondary = tint(base.secondary, -0.7);
+        const cssColor = (color) =>
+          `rgb(${color.map((channel) => Math.round(channel * 255)).join(" ")})`;
+        return {
+          ...base,
+          primary,
+          secondary,
+          css: [cssColor(primary), cssColor(secondary)],
+        };
+      }
+
+      function makeIdentity(seedText) {
+        const normalizedSeed = seedText.trim() || "untitled-call";
+        const hash = hashSeed(normalizedSeed);
+        const random = makeRandom(hash);
+        const provider = PROVIDERS[providerSelect.value] ?? PROVIDERS.codex;
+        const project = PROJECTS[projectSelect.value] ?? PROJECTS.none;
+        const basePalette = PALETTES.find((palette) => palette.id === provider.palette);
+        const hueShift = Math.round(between(random, -11, 11));
+        return {
+          seed: normalizedSeed,
+          code: hash.toString(16).padStart(8, "0"),
+          provider,
+          project,
+          hueShift,
+          palette: composeIdentityPalette(basePalette, project, hueShift),
+          flow: between(random, 0.72, 1.28),
+          vorticity: between(random, 0.62, 1.58),
+          turbulence: between(random, 0.76, 1.34),
+          curl: between(random, 0.78, 1.28),
+          positionX: between(random, -0.18, 0.18),
+          positionY: between(random, -0.13, 0.13),
+          scale: between(random, 0.86, 1.17),
+          tilt: between(random, -0.24, 0.24),
+          spread: between(random, 0.82, 1.2),
+          detail: between(random, 0.78, 1.24),
+          light: between(random, 0.9, 1.13),
+        };
+      }
+
+      function setPalette(palette, custom = false) {
+        if (!state.identity) return;
+        state.identity.palette = palette;
+        document.documentElement.style.setProperty("--accent", palette.css[0]);
+        document.documentElement.style.setProperty("--accent-secondary", palette.css[1]);
+        identityOutput.value = custom ? `${palette.id} · custom` : palette.id;
+        paletteTheoryLabel.textContent = palette.theory;
+        document.querySelectorAll("[data-palette]").forEach((button) => {
+          button.setAttribute("aria-pressed", String(button.dataset.palette === palette.id));
+        });
+      }
+
+      const SEEDED_CONTROLS = [
+        ["flow", "flow", "flow-output"],
+        ["vorticity", "vorticity", "vorticity-output"],
+        ["turbulence", "turbulence", "turbulence-output"],
+        ["curl", "curl", "curl-output"],
+        ["position-x", "positionX", "position-x-output"],
+        ["position-y", "positionY", "position-y-output"],
+        ["scale", "scale", "scale-output"],
+        ["tilt", "tilt", "tilt-output"],
+        ["spread", "spread", "spread-output"],
+        ["detail", "detail", "detail-output"],
+        ["light", "light", "light-output"],
+      ];
+
+      function applyIdentity(identity) {
+        state.identity = identity;
+        callSeedInput.value = identity.seed;
+        callTitle.textContent = identity.seed
+          .split(/[-_\s]+/)
+          .filter(Boolean)
+          .map((word) => word[0].toUpperCase() + word.slice(1))
+          .join(" ");
+        identityCode.textContent = identity.code;
+        document.querySelector("#provider-layer").textContent = identity.provider.label;
+        document.querySelector("#project-layer").textContent = identity.project.label;
+        document.querySelector("#thread-layer").textContent =
+          `${identity.hueShift >= 0 ? "+" : ""}${identity.hueShift}° hue`;
+        SEEDED_CONTROLS.forEach(([id, key, outputId]) => {
+          state[key] = identity[key];
+          document.querySelector(`#${id}`).value = identity[key];
+          document.querySelector(`#${outputId}`).value = identity[key].toFixed(2);
+        });
+        setPalette(identity.palette);
+        identityOutput.value = `${identity.provider.label.toLowerCase()} · ${identity.palette.id}`;
+      }
+
+      function renderPaletteList() {
+        const paletteList = document.querySelector("#palette-list");
+        paletteList.innerHTML = PALETTES.map(
+          (palette) => `
+            <button class="palette-button" type="button" data-palette="${palette.id}" aria-pressed="false">
+              <span class="palette-swatch" aria-hidden="true">
+                <i style="background:${palette.css[0]}"></i><i style="background:${palette.css[1]}"></i>
+              </span>
+              <span class="palette-name">${palette.name}</span>
+              <span class="palette-theory">${palette.theory}</span>
+            </button>
+          `,
+        ).join("");
+      }
+
+      function applyCurrentSeed() {
+        applyIdentity(makeIdentity(callSeedInput.value));
+      }
+
+      function setPhase(phase, options = {}) {
+        if (!PHASES[phase]) return;
+        if (state.phase !== "muted" && phase === "muted") state.previousPhase = state.phase;
+        state.phase = phase;
+        surface.dataset.phase = phase;
+        surface.dataset.turn = PHASES[phase].turn;
+        phaseOutput.value = PHASES[phase].labLabel;
+        statusLabel.textContent = PHASES[phase].label;
+        appState.textContent =
+          phase === "idle" ? "Ready" : phase === "muted" ? "Call paused" : "In call";
+        muteButton.classList.toggle("muted", phase === "muted");
+        muteButton.setAttribute("aria-label", phase === "muted" ? "Unmute" : "Mute");
+        document.querySelectorAll("[data-set-phase]").forEach((button) => {
+          button.setAttribute("aria-pressed", String(button.dataset.setPhase === phase));
+        });
+
+        if (!options.keepCopy) {
+          if (phase === "idle") {
+            transcript.textContent = "Listening…";
+            speakerLabel.textContent = "Your live transcript";
+          } else if (phase === "listening") {
+            speakerLabel.textContent = "Your live transcript";
+            transcript.textContent = "Listening…";
+            activityNote.innerHTML =
+              '<span class="activity-dot"></span><span>Microphone ready</span>';
+          } else if (phase === "thinking") {
+            speakerLabel.textContent = "Voice is preparing";
+            transcript.textContent = "Checking the voice presentation…";
+            activityNote.innerHTML =
+              '<span class="activity-dot pulse"></span><span>Reading the current thread</span>';
+          } else if (phase === "speaking") {
+            speakerLabel.textContent = "AI response";
+            transcript.textContent = "Preparing a response…";
+            activityNote.innerHTML =
+              '<span class="activity-dot"></span><span>Dummy agent playback</span>';
+          } else {
+            speakerLabel.textContent = "Microphone muted";
+            transcript.textContent = "Your microphone is muted.";
+            activityNote.innerHTML =
+              '<span class="activity-dot"></span><span>Audio input suspended</span>';
+          }
+        }
+
+        if (phase === "idle") {
+          state.startedAt = 0;
+          timer.textContent = "00:00";
+        } else if (!state.startedAt) {
+          state.startedAt = performance.now();
+        }
+      }
+
+      async function revealSentence(sentence, duration, token, role, useLiveAudio = false) {
+        const words = sentence.split(" ");
+        transcript.textContent = "";
+        for (let index = 0; index < words.length; index += 1) {
+          if (token !== state.demoToken || state.phase === "muted" || state.phase === "idle")
+            return false;
+          transcript.textContent = words.slice(0, index + 1).join(" ");
+          if (!state.manualActivity && !useLiveAudio) {
+            const syllablePulse = 0.28 + Math.abs(Math.sin(index * 1.71)) * 0.58;
+            state.activity = role === "assistant" ? syllablePulse * 0.86 : syllablePulse;
+          }
+          await wait(duration / words.length);
+        }
+        if (!state.manualActivity && !useLiveAudio) state.activity = 0.08;
+        return true;
+      }
+
+      function getAudioContext() {
+        if (!document.querySelector("#audio-cue").checked) return;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const context = state.audioContext ?? new AudioContext();
+        state.audioContext = context;
+        if (context.state === "suspended") void context.resume();
+        return context;
+      }
+
+      function stopSpeech() {
+        const playback = state.audioPlayback;
+        if (!playback) return;
+        playback.finish?.();
+        playback.audio.pause();
+        playback.audio.removeAttribute("src");
+        playback.audio.load();
+        playback.source.disconnect();
+        playback.analyser.disconnect();
+        state.audioPlayback = null;
+        surface.dataset.audio = "off";
+      }
+
+      async function speakSentence(sentence, fallbackDuration, token, role, sourceUrl) {
+        if (!document.querySelector("#audio-cue").checked) {
+          return revealSentence(sentence, fallbackDuration, token, role);
+        }
+
+        stopSpeech();
+        const context = getAudioContext();
+        if (!context) return revealSentence(sentence, fallbackDuration, token, role);
+
+        const audio = new Audio(sourceUrl);
+        audio.preload = "auto";
+        const source = context.createMediaElementSource(audio);
+        const analyser = context.createAnalyser();
+        analyser.fftSize = 512;
+        analyser.smoothingTimeConstant = 0.7;
+        source.connect(analyser);
+        analyser.connect(context.destination);
+        let finishPlayback;
+        const ended = new Promise((resolve) => {
+          finishPlayback = resolve;
+          audio.addEventListener("ended", resolve, { once: true });
+          audio.addEventListener("error", resolve, { once: true });
+        });
+        state.audioPlayback = {
+          audio,
+          source,
+          analyser,
+          samples: new Float32Array(analyser.fftSize),
+          role,
+          finish: finishPlayback,
+        };
+        surface.dataset.audio = role;
+
+        await new Promise((resolve) => {
+          if (audio.readyState >= 1) resolve();
+          else {
+            audio.addEventListener("loadedmetadata", resolve, { once: true });
+            audio.addEventListener("error", resolve, { once: true });
+          }
+          audio.load();
+        });
+        if (token !== state.demoToken) return false;
+
+        const duration = Number.isFinite(audio.duration)
+          ? Math.max(900, audio.duration * 1000)
+          : fallbackDuration;
+        try {
+          await audio.play();
+        } catch {
+          stopSpeech();
+          return revealSentence(sentence, fallbackDuration, token, role);
+        }
+
+        const revealed = await revealSentence(sentence, duration, token, role, true);
+        await ended;
+        if (state.audioPlayback?.audio === audio) stopSpeech();
+        if (!state.manualActivity) state.activity = 0.08;
+        return revealed && token === state.demoToken;
+      }
+
+      async function playReply() {
+        const token = ++state.demoToken;
+        if (!state.startedAt) state.startedAt = performance.now();
+        demoStatus.value = "AI response";
+        setPhase("speaking");
+        await speakSentence(AI_SENTENCE, 4700, token, "assistant", "audio/ai-response.mp3");
+        if (token !== state.demoToken) return;
+        activityNote.innerHTML = '<span class="activity-dot"></span><span>Reply complete</span>';
+        demoStatus.value = "ready";
+        await wait(600);
+        if (token === state.demoToken) setPhase("listening");
+      }
+
+      async function runDemo() {
+        const token = ++state.demoToken;
+        if (!state.startedAt) state.startedAt = performance.now();
+        demoStatus.value = "user transcript";
+        setPhase("listening");
+        const heard = await speakSentence(
+          USER_SENTENCE,
+          4200,
+          token,
+          "user",
+          "audio/user-turn.mp3",
+        );
+        if (!heard || token !== state.demoToken) return;
+
+        demoStatus.value = "AI working";
+        setPhase("thinking");
+        transcript.textContent = "Inspecting motion, contrast, and transcript legibility…";
+        await wait(2100);
+        if (token !== state.demoToken) return;
+
+        demoStatus.value = "AI response";
+        setPhase("speaking");
+        const replied = await speakSentence(
+          AI_SENTENCE,
+          4800,
+          token,
+          "assistant",
+          "audio/ai-response.mp3",
+        );
+        if (!replied || token !== state.demoToken) return;
+
+        demoStatus.value = "ready";
+        activityNote.innerHTML = '<span class="activity-dot"></span><span>Reply complete</span>';
+        await wait(900);
+        if (token !== state.demoToken) return;
+        if (document.querySelector("#loop-demo").checked) runDemo();
+        else setPhase("listening");
+      }
+
+      document.querySelector("#run-demo").addEventListener("click", runDemo);
+      document.querySelector("#start-call").addEventListener("click", runDemo);
+      document.querySelector("#play-reply").addEventListener("click", playReply);
+      document.querySelector("#end-button").addEventListener("click", () => {
+        state.demoToken += 1;
+        stopSpeech();
+        state.activity = 0;
+        state.manualActivity = false;
+        demoStatus.value = "ready";
+        setPhase("idle");
+      });
+      muteButton.addEventListener("click", () => {
+        state.demoToken += 1;
+        stopSpeech();
+        setPhase(state.phase === "muted" ? state.previousPhase || "listening" : "muted");
+      });
+      document.querySelector("#speaker-button").addEventListener("click", (event) => {
+        event.currentTarget.classList.toggle("muted");
+      });
+      document.querySelector("#phase-controls").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-set-phase]");
+        if (!button) return;
+        state.demoToken += 1;
+        stopSpeech();
+        demoStatus.value = "manual";
+        setPhase(button.dataset.setPhase);
+      });
+      document.querySelector("#audio-cue").addEventListener("change", (event) => {
+        if (!event.currentTarget.checked) stopSpeech();
+      });
+
+      document.querySelector("#apply-seed").addEventListener("click", applyCurrentSeed);
+      callSeedInput.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        applyCurrentSeed();
+        callSeedInput.select();
+      });
+      document.querySelector("#palette-list").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-palette]");
+        if (!button) return;
+        const palette = PALETTES.find((candidate) => candidate.id === button.dataset.palette);
+        if (palette) setPalette(palette, true);
+      });
+      document.querySelector("#next-call").addEventListener("click", () => {
+        const randomId = crypto.getRandomValues(new Uint32Array(1))[0].toString(36);
+        callSeedInput.value = `thread-${randomId}`;
+        applyCurrentSeed();
+      });
+      providerSelect.addEventListener("change", applyCurrentSeed);
+      projectSelect.addEventListener("change", applyCurrentSeed);
+
+      function bindRange(id, key, outputId, formatter = (value) => value.toFixed(2)) {
+        const input = document.querySelector(`#${id}`);
+        const output = document.querySelector(`#${outputId}`);
+        input.addEventListener("input", () => {
+          const value = Number(input.value);
+          state[key] = value;
+          if (state.identity) state.identity[key] = value;
+          if (state.identity) identityOutput.value = `${state.identity.palette.id} · custom`;
+          output.value = formatter(value);
+        });
+      }
+      bindRange("flow", "flow", "flow-output");
+      bindRange("vorticity", "vorticity", "vorticity-output");
+      bindRange("turbulence", "turbulence", "turbulence-output");
+      bindRange("curl", "curl", "curl-output");
+      bindRange("position-x", "positionX", "position-x-output");
+      bindRange("position-y", "positionY", "position-y-output");
+      bindRange("scale", "scale", "scale-output");
+      bindRange("tilt", "tilt", "tilt-output");
+      bindRange("spread", "spread", "spread-output");
+      bindRange("detail", "detail", "detail-output");
+      bindRange("light", "light", "light-output");
+      const activityInput = document.querySelector("#activity");
+      const activityOutput = document.querySelector("#activity-output");
+      activityInput.addEventListener("input", () => {
+        state.manualActivity = true;
+        state.activity = Number(activityInput.value);
+        activityOutput.value = state.activity.toFixed(2);
+      });
+      activityInput.addEventListener("dblclick", () => {
+        state.manualActivity = false;
+        activityOutput.value = "auto";
+      });
+      document.querySelector("#animate-material").addEventListener("change", (event) => {
+        state.animate = event.target.checked;
+      });
+      document.querySelector("#quality-controls").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-quality]");
+        if (!button || !QUALITY_PROFILES[button.dataset.quality]) return;
+        state.quality = button.dataset.quality;
+        state.qualityRevision += 1;
+        document.querySelector("#viewport-quality").textContent = `420 × ${state.quality}`;
+        document.querySelectorAll("[data-quality]").forEach((candidate) => {
+          candidate.setAttribute(
+            "aria-pressed",
+            String(candidate.dataset.quality === state.quality),
+          );
+        });
+      });
+
+      window.setInterval(() => {
+        if (!state.startedAt) return;
+        const seconds = Math.max(0, Math.floor((performance.now() - state.startedAt) / 1000));
+        timer.textContent = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+      }, 250);
+
+      function compileShader(gl, type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          const message = gl.getShaderInfoLog(shader);
+          gl.deleteShader(shader);
+          throw new Error(message || "Shader compilation failed");
+        }
+        return shader;
+      }
+
+      function startRenderer() {
+        const canvas = document.querySelector("#presence");
+        const gl = canvas.getContext("webgl", {
+          alpha: false,
+          antialias: false,
+          powerPreference: "high-performance",
+        });
+        if (!gl || !gl.getExtension("OES_standard_derivatives")) {
+          document.querySelector("#render-note").textContent =
+            "WebGL is unavailable. The call controls still work.";
+          return;
+        }
+
+        try {
+          const vertex = compileShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
+          const fragment = compileShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
+          const program = gl.createProgram();
+          gl.attachShader(program, vertex);
+          gl.attachShader(program, fragment);
+          gl.linkProgram(program);
+          gl.deleteShader(vertex);
+          gl.deleteShader(fragment);
+          if (!gl.getProgramParameter(program, gl.LINK_STATUS))
+            throw new Error(gl.getProgramInfoLog(program));
+
+          gl.useProgram(program);
+          const buffer = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+          const position = gl.getAttribLocation(program, "a_position");
+          gl.enableVertexAttribArray(position);
+          gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+          const uniforms = Object.fromEntries(
+            [
+              "resolution",
+              "displayAspect",
+              "time",
+              "primary",
+              "secondary",
+              "energy",
+              "voice",
+              "phaseMix",
+              "flowSpeed",
+              "vorticity",
+              "turbulence",
+              "curl",
+              "position",
+              "scale",
+              "tilt",
+              "spread",
+              "detail",
+              "brightness",
+            ].map((name) => [name, gl.getUniformLocation(program, `u_${name}`)]),
+          );
+          const current = {
+            primary: [...state.identity.palette.primary],
+            secondary: [...state.identity.palette.secondary],
+            energy: PHASES.idle.energy,
+            voice: 0,
+            phaseMix: PHASES.idle.pairMix,
+          };
+          const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+          const renderNote = document.querySelector("#render-note");
+          const started = performance.now();
+          let lastDraw = 0;
+          let frozenTime = 0;
+          let isCanvasVisible = true;
+          let adaptiveReduced = false;
+          let slowSamples = 0;
+          let sampleStarted = performance.now();
+          let sampleFrames = 0;
+          let lastActivityText = "";
+          let qualityRevision = state.qualityRevision;
+
+          const observer = new IntersectionObserver(([entry]) => {
+            isCanvasVisible = entry.isIntersecting;
+            if (isCanvasVisible) lastDraw = 0;
+          });
+          observer.observe(canvas);
+
+          function activeProfile() {
+            const selected = QUALITY_PROFILES[state.quality];
+            if (state.quality !== "adaptive" || !adaptiveReduced) return selected;
+            return { label: "Adaptive · reduced", scale: 0.56, fps: 24 };
+          }
+
+          function resize(profile) {
+            const ratio = Math.min(window.devicePixelRatio || 1, 1.25) * profile.scale;
+            const width = Math.max(1, Math.round(canvas.clientWidth * ratio));
+            const height = Math.max(1, Math.round(canvas.clientHeight * ratio));
+            if (canvas.width !== width || canvas.height !== height) {
+              canvas.width = width;
+              canvas.height = height;
+              gl.viewport(0, 0, width, height);
+            }
+          }
+
+          function render(now) {
+            requestAnimationFrame(render);
+            if (document.hidden || !isCanvasVisible) return;
+            if (qualityRevision !== state.qualityRevision) {
+              qualityRevision = state.qualityRevision;
+              adaptiveReduced = false;
+              slowSamples = 0;
+              sampleStarted = now;
+              sampleFrames = 0;
+            }
+            const profile = activeProfile();
+            const targetFps =
+              reduceMotion.matches || state.phase === "idle" || state.phase === "muted"
+                ? 6
+                : profile.fps;
+            const interval = 1000 / targetFps;
+            const elapsed = lastDraw ? now - lastDraw : interval;
+            if (elapsed < interval - 1) return;
+            const delta = Math.min(elapsed / 1000, 0.1);
+            lastDraw = now - (elapsed % interval);
+            resize(profile);
+
+            if (state.audioPlayback && !state.manualActivity) {
+              const { analyser, samples, role } = state.audioPlayback;
+              analyser.getFloatTimeDomainData(samples);
+              let energy = 0;
+              for (const sample of samples) energy += sample * sample;
+              const rms = Math.sqrt(energy / samples.length);
+              const sensitivity = role === "assistant" ? 5.2 : 5.8;
+              state.activity = Math.min(1, 0.06 + rms * sensitivity);
+            }
+
+            const target = PHASES[state.phase];
+            const phaseBlend = 1 - Math.exp(-delta / 2.2);
+            const voiceTarget =
+              state.phase === "muted" || state.phase === "idle" ? 0 : state.activity;
+            const voiceBlend = 1 - Math.exp(-delta / (voiceTarget > current.voice ? 0.09 : 0.52));
+            current.energy += (target.energy - current.energy) * phaseBlend;
+            current.voice += (voiceTarget - current.voice) * voiceBlend;
+            current.phaseMix += (target.pairMix - current.phaseMix) * phaseBlend;
+            current.primary = current.primary.map(
+              (value, index) =>
+                value + (state.identity.palette.primary[index] - value) * phaseBlend,
+            );
+            current.secondary = current.secondary.map(
+              (value, index) =>
+                value + (state.identity.palette.secondary[index] - value) * phaseBlend,
+            );
+
+            if (state.animate && !reduceMotion.matches) frozenTime = (now - started) / 1000;
+            gl.uniform2f(uniforms.resolution, canvas.width, canvas.height);
+            gl.uniform1f(uniforms.displayAspect, canvas.clientWidth / canvas.clientHeight);
+            gl.uniform1f(uniforms.time, frozenTime);
+            gl.uniform3fv(uniforms.primary, current.primary);
+            gl.uniform3fv(uniforms.secondary, current.secondary);
+            gl.uniform1f(uniforms.energy, current.energy);
+            gl.uniform1f(uniforms.voice, current.voice);
+            gl.uniform1f(uniforms.phaseMix, current.phaseMix);
+            gl.uniform1f(uniforms.flowSpeed, state.flow);
+            gl.uniform1f(uniforms.vorticity, state.vorticity);
+            gl.uniform1f(uniforms.turbulence, state.turbulence);
+            gl.uniform1f(uniforms.curl, state.curl);
+            gl.uniform2f(uniforms.position, state.positionX, state.positionY);
+            gl.uniform1f(uniforms.scale, state.scale);
+            gl.uniform1f(uniforms.tilt, state.tilt);
+            gl.uniform1f(uniforms.spread, state.spread);
+            gl.uniform1f(uniforms.detail, state.detail);
+            gl.uniform1f(uniforms.brightness, state.light);
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+            if (!state.manualActivity) {
+              const activityText = state.phase === "idle" ? "auto" : state.activity.toFixed(2);
+              if (activityText !== lastActivityText) {
+                activityOutput.value = activityText;
+                lastActivityText = activityText;
+              }
+            }
+
+            sampleFrames += 1;
+            const sampleDuration = now - sampleStarted;
+            if (sampleDuration >= 1000) {
+              const measuredFps = Math.round((sampleFrames * 1000) / sampleDuration);
+              if (
+                state.quality === "adaptive" &&
+                !adaptiveReduced &&
+                targetFps === 30 &&
+                measuredFps < 25
+              ) {
+                slowSamples += 1;
+                if (slowSamples >= 2) adaptiveReduced = true;
+              } else if (measuredFps >= targetFps - 2) {
+                slowSamples = 0;
+              }
+              const visibleProfile = activeProfile();
+              renderNote.textContent = `${visibleProfile.label} · ${measuredFps} fps · ${canvas.width} × ${canvas.height}`;
+              sampleStarted = now;
+              sampleFrames = 0;
+            }
+          }
+
+          requestAnimationFrame(render);
+        } catch (error) {
+          document.querySelector("#render-note").textContent = `Renderer error: ${error.message}`;
+        }
+      }
+
+      renderPaletteList();
+      applyIdentity(makeIdentity(callSeedInput.value));
+      setPhase("idle");
+      startRenderer();
+    </script>
+  </body>
+</html>
