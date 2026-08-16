@@ -285,6 +285,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
     readonly threadId: ThreadId;
     readonly providerInstanceId: ProviderInstanceId;
     readonly controllerGrant?: ProviderSessionStartInput["controllerGrant"];
+    readonly threadControlGrant?: ProviderSessionStartInput["threadControlGrant"];
   }) {
     yield* clearMcpSession(input.threadId);
     const standard = yield* McpSessionRegistry.issueActiveMcpCredential({
@@ -294,21 +295,30 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
     if (standard) {
       McpProviderSession.setMcpProviderSession(standard.config);
     }
-    if (input.controllerGrant === undefined) {
+    const { controllerGrant, threadControlGrant } = input;
+    if (controllerGrant === undefined && threadControlGrant === undefined) {
       return undefined;
     }
     const controller = yield* McpSessionRegistry.issueActiveMcpCredential({
       threadId: input.threadId,
       providerInstanceId: input.providerInstanceId,
-      profile: {
-        kind: "voice-controller",
-        controllerThreadId: input.controllerGrant.controllerThreadId,
-        runtimeInstanceId: VoiceRuntimeInstanceId.make(input.controllerGrant.runtimeInstanceId),
-        authorizedRuntimeCeiling: input.controllerGrant.authorizedRuntimeCeiling,
-        liveControllerRuntimeMode: input.controllerGrant.liveControllerRuntimeMode,
-        controlEpoch: input.controllerGrant.controlEpoch,
-        controlEnabled: input.controllerGrant.controlEnabled,
-      },
+      profile:
+        controllerGrant !== undefined
+          ? {
+              kind: "voice-controller",
+              controllerThreadId: controllerGrant.controllerThreadId,
+              runtimeInstanceId: VoiceRuntimeInstanceId.make(controllerGrant.runtimeInstanceId),
+              authorizedRuntimeCeiling: controllerGrant.authorizedRuntimeCeiling,
+              liveControllerRuntimeMode: controllerGrant.liveControllerRuntimeMode,
+              controlEpoch: controllerGrant.controlEpoch,
+              controlEnabled: controllerGrant.controlEnabled,
+            }
+          : {
+              kind: "durable-thread-controller",
+              controllerThreadId: threadControlGrant.controllerThreadId,
+              authorizedRuntimeCeiling: threadControlGrant.authorizedRuntimeCeiling,
+              controlEnabled: threadControlGrant.controlEnabled,
+            },
     });
     if (controller) {
       McpProviderSession.setMcpProviderSession(controller.config);
@@ -752,6 +762,8 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
         const adapter = yield* registry.getByInstance(resolvedInstanceId);
         const controllerGrant =
           input.threadPurpose === "voice-controller" ? input.controllerGrant : undefined;
+        const threadControlGrant =
+          !isManagedVoicePurpose ? input.threadControlGrant : undefined;
         if (input.threadPurpose === "voice-controller" && controllerGrant === undefined) {
           return yield* toValidationError(
             "ProviderService.startSession",
@@ -767,12 +779,31 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
             "Voice controller runtime identity must match its controller grant.",
           );
         }
+        if (input.threadControlGrant !== undefined && isManagedVoicePurpose) {
+          return yield* toValidationError(
+            "ProviderService.startSession",
+            "Durable thread-control grants are reserved for ordinary provider sessions.",
+          );
+        }
+        if (
+          threadControlGrant !== undefined &&
+          threadControlGrant.controllerThreadId !== threadId
+        ) {
+          return yield* toValidationError(
+            "ProviderService.startSession",
+            "A durable thread-control grant must belong to the started thread.",
+          );
+        }
         const controllerCredential = yield* prepareFreshMcpSessions({
           threadId,
           providerInstanceId: resolvedInstanceId,
           ...(controllerGrant !== undefined ? { controllerGrant } : {}),
+          ...(threadControlGrant !== undefined ? { threadControlGrant } : {}),
         });
-        if (controllerGrant !== undefined && controllerCredential === undefined) {
+        if (
+          (controllerGrant !== undefined || threadControlGrant !== undefined) &&
+          controllerCredential === undefined
+        ) {
           return yield* toValidationError(
             "ProviderService.startSession",
             "Controller MCP credential registry is unavailable.",
@@ -807,7 +838,8 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
         if (controllerCredential !== undefined) {
           if (
             session.providerThreadId === undefined ||
-            session.runtimeInstanceId !== controllerGrant?.runtimeInstanceId
+            (controllerGrant !== undefined &&
+              session.runtimeInstanceId !== controllerGrant.runtimeInstanceId)
           ) {
             yield* clearMcpSession(threadId);
             return yield* toValidationError(
@@ -898,6 +930,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
       );
     }
     const controllerGrant = isVoiceController ? input.controllerGrant : undefined;
+    const threadControlGrant = !isManagedVoicePurpose ? input.threadControlGrant : undefined;
     if (isVoiceController && controllerGrant === undefined) {
       return yield* toValidationError(
         "ProviderService.recoverCreatedSession",
@@ -911,6 +944,21 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
       return yield* toValidationError(
         "ProviderService.recoverCreatedSession",
         "Voice controller runtime identity must match its controller grant.",
+      );
+    }
+    if (input.threadControlGrant !== undefined && isManagedVoicePurpose) {
+      return yield* toValidationError(
+        "ProviderService.recoverCreatedSession",
+        "Durable thread-control grants are reserved for ordinary provider sessions.",
+      );
+    }
+    if (
+      threadControlGrant !== undefined &&
+      threadControlGrant.controllerThreadId !== input.threadId
+    ) {
+      return yield* toValidationError(
+        "ProviderService.recoverCreatedSession",
+        "A durable thread-control grant must belong to the recovered thread.",
       );
     }
     const instanceInfo = yield* registry.getInstanceInfo(resolvedInstanceId);
@@ -938,8 +986,12 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
       threadId: input.threadId,
       providerInstanceId: resolvedInstanceId,
       ...(controllerGrant !== undefined ? { controllerGrant } : {}),
+      ...(threadControlGrant !== undefined ? { threadControlGrant } : {}),
     });
-    if (controllerGrant !== undefined && controllerCredential === undefined) {
+    if (
+      (controllerGrant !== undefined || threadControlGrant !== undefined) &&
+      controllerCredential === undefined
+    ) {
       return yield* toValidationError(
         "ProviderService.recoverCreatedSession",
         "Controller MCP credential registry is unavailable.",
@@ -988,7 +1040,10 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
       );
     }
     if (controllerCredential !== undefined) {
-      if (session.runtimeInstanceId !== controllerGrant?.runtimeInstanceId) {
+      if (
+        controllerGrant !== undefined &&
+        session.runtimeInstanceId !== controllerGrant.runtimeInstanceId
+      ) {
         yield* clearMcpSession(input.threadId);
         return yield* toValidationError(
           "ProviderService.recoverCreatedSession",
