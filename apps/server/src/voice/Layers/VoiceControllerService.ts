@@ -698,9 +698,11 @@ export const makeVoiceControllerService = Effect.fn("VoiceControllerService.make
     if (!policy.realtime || !policy.read) {
       return yield* voiceError("feature_disabled", "Realtime voice is disabled.", false);
     }
-    const threadSnapshot = yield* projection.getThreadDetailSnapshot(input.threadId).pipe(
-      Effect.mapError(mapInternalError("internal_error", "The Call thread could not be read.")),
-    );
+    const threadSnapshot = yield* projection
+      .getThreadDetailSnapshot(input.threadId)
+      .pipe(
+        Effect.mapError(mapInternalError("internal_error", "The Call thread could not be read.")),
+      );
     if (
       Option.isNone(threadSnapshot) ||
       threadSnapshot.value.thread.purpose !== "standard" ||
@@ -1402,6 +1404,12 @@ export const makeVoiceControllerService = Effect.fn("VoiceControllerService.make
         });
         return;
       case "transport.transcript.done":
+        if (session.fence.owner?.kind === "thread-call" && event.role === "user") {
+          // The active Call client's WebRTC data channel is authoritative for
+          // user finals. The provider runtime mirrors the same utterance with
+          // a different item identity and must not trigger barge-in twice.
+          return;
+        }
         yield* actionRunner.ingestTranscriptDone(session, {
           type: "transcript.done",
           itemId: VoiceTranscriptItemId.make(event.itemId),

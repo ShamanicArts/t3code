@@ -329,13 +329,22 @@ describe("authenticated voice RPC vertical integration", () => {
           }),
         );
         const settings = Context.get(settingsContext, ServerSettings.ServerSettingsService);
-        const speechArbiter = yield* makeVoiceSpeechArbiter((attempt) =>
+        let userSpeechObservations = 0;
+        const baseSpeechArbiter = yield* makeVoiceSpeechArbiter((attempt) =>
           runtime.appendTransportSpeech({
             transportThreadId: attempt.session.fence.transportThreadId,
             generation: attempt.session.fence.generation,
             text: attempt.requestedText,
           }),
         );
+        const speechArbiter = VoiceSpeechArbiter.of({
+          ...baseSpeechArbiter,
+          observeUserSpeech: (session) =>
+            Effect.gen(function* () {
+              userSpeechObservations += 1;
+              yield* baseSpeechArbiter.observeUserSpeech(session);
+            }),
+        });
         const transportCoordinator = yield* makeVoiceTransportCoordinator().pipe(
           Effect.provideService(ServerEnvironment.ServerEnvironment, environment),
           Effect.provideService(OrchestrationEngineService, engine),
@@ -557,8 +566,47 @@ describe("authenticated voice RPC vertical integration", () => {
           yield* fullClient[WS_METHODS.voiceIngestRealtimeEvent](callTranscript);
         const replayedCallIngress =
           yield* fullClient[WS_METHODS.voiceIngestRealtimeEvent](callTranscript);
+        const mirroredCallIngress = yield* fullClient[WS_METHODS.voiceIngestRealtimeEvent]({
+          ...callTranscript,
+          event: {
+            ...callTranscript.event,
+            itemId: VoiceTranscriptItemId.make("call-utterance-provider-mirror"),
+            text: "inspect this exact thread!",
+          },
+        });
         assert.isTrue(firstCallIngress.accepted);
         assert.deepStrictEqual(replayedCallIngress, firstCallIngress);
+        assert.deepStrictEqual(mirroredCallIngress, firstCallIngress);
+        assert.strictEqual(userSpeechObservations, 1);
+        yield* PubSub.publish(runtimeEvents, {
+          type: "transport.transcript.done",
+          transportThreadId: callFence.transportThreadId,
+          runtimeInstanceId: callFence.runtimeInstanceId,
+          generation: callFence.generation,
+          realtimeSessionId: callFence.realtimeSessionId,
+          itemId: "call-utterance-runtime-mirror",
+          role: "user",
+          text: "Inspect this exact thread.",
+        });
+        yield* Effect.yieldNow;
+        assert.strictEqual(userSpeechObservations, 1);
+        yield* fullClient[WS_METHODS.voiceIngestRealtimeEvent]({
+          ...callFence,
+          event: {
+            type: "transcript.done",
+            itemId: VoiceTranscriptItemId.make("call-assistant-boundary"),
+            role: "assistant",
+            text: "I heard the first request.",
+          },
+        });
+        yield* fullClient[WS_METHODS.voiceIngestRealtimeEvent]({
+          ...callTranscript,
+          event: {
+            ...callTranscript.event,
+            itemId: VoiceTranscriptItemId.make("call-utterance-2"),
+          },
+        });
+        assert.strictEqual(userSpeechObservations, 2);
         assert.lengthOf(
           dispatchedCommands.filter(
             (command) =>
