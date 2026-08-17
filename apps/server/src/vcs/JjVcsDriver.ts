@@ -222,36 +222,46 @@ export const makeVcsDriver = Effect.gen(function* () {
       readonly maxOutputBytes?: number;
       readonly appendTruncationMarker?: boolean;
       readonly ignoreWorkingCopy?: boolean;
+      readonly retryStaleWorkingCopy?: boolean;
     },
   ) =>
     Effect.gen(function* () {
       const repositoryRoot = (yield* resolveNearestJjRoot(cwd)) ?? cwd;
-      return yield* process.run({
-        operation,
-        command: "jj",
-        args: [
-          "--no-pager",
-          "--color",
-          "never",
-          ...(options?.ignoreWorkingCopy ? ["--ignore-working-copy"] : []),
-          "-R",
-          repositoryRoot,
-          ...args,
-        ],
-        cwd,
-        spawnCwd: globalThis.process.cwd(),
-        ...(options?.stdin !== undefined ? { stdin: options.stdin } : {}),
-        ...(options?.allowNonZeroExit !== undefined
-          ? { allowNonZeroExit: options.allowNonZeroExit }
-          : {}),
-        ...(options?.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
-        ...(options?.maxOutputBytes !== undefined
-          ? { maxOutputBytes: options.maxOutputBytes }
-          : {}),
-        ...(options?.appendTruncationMarker !== undefined
-          ? { appendTruncationMarker: options.appendTruncationMarker }
-          : {}),
-      });
+      const run = (ignoreWorkingCopy: boolean) =>
+        process.run({
+          operation,
+          command: "jj",
+          args: [
+            "--no-pager",
+            "--color",
+            "never",
+            ...(ignoreWorkingCopy ? ["--ignore-working-copy"] : []),
+            "-R",
+            repositoryRoot,
+            ...args,
+          ],
+          cwd,
+          spawnCwd: globalThis.process.cwd(),
+          ...(options?.stdin !== undefined ? { stdin: options.stdin } : {}),
+          ...(options?.allowNonZeroExit !== undefined
+            ? { allowNonZeroExit: options.allowNonZeroExit }
+            : {}),
+          ...(options?.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+          ...(options?.maxOutputBytes !== undefined
+            ? { maxOutputBytes: options.maxOutputBytes }
+            : {}),
+          ...(options?.appendTruncationMarker !== undefined
+            ? { appendTruncationMarker: options.appendTruncationMarker }
+            : {}),
+        });
+      const ignoreWorkingCopy = options?.ignoreWorkingCopy === true;
+      return yield* run(ignoreWorkingCopy).pipe(
+        Effect.catchTag("VcsProcessExitError", (error) =>
+          !ignoreWorkingCopy && options?.retryStaleWorkingCopy === true
+            ? run(true)
+            : Effect.fail(error),
+        ),
+      );
     });
 
   const runGit = (
@@ -482,24 +492,29 @@ export const makeVcsDriver = Effect.gen(function* () {
   const readWorkingCopyCommit = Effect.fn("JjVcsDriver.readWorkingCopyCommit")(function* (
     cwd: string,
     revision = "@",
+    retryStaleWorkingCopy = false,
   ) {
     const operation = "JjVcsDriver.readWorkingCopyCommit";
     const result = yield* runJj(
       operation,
       cwd,
       ["log", "--no-graph", "-r", revision, "-T", JJ_COMMIT_TEMPLATE],
-      { timeoutMs: 10_000, maxOutputBytes: 64 * 1024 },
+      { timeoutMs: 10_000, maxOutputBytes: 64 * 1024, retryStaleWorkingCopy },
     );
     return yield* decodeRawJjCommit(result.stdout.trim()).pipe(
       Effect.mapError(() => structuredOutputError(operation, cwd)),
     );
   });
 
-  const readDiffEntries = Effect.fn("JjVcsDriver.readDiffEntries")(function* (cwd: string) {
+  const readDiffEntries = Effect.fn("JjVcsDriver.readDiffEntries")(function* (
+    cwd: string,
+    retryStaleWorkingCopy = false,
+  ) {
     const operation = "JjVcsDriver.readDiffEntries";
     const result = yield* runJj(operation, cwd, ["diff", "-r", "@", "-T", JJ_DIFF_ENTRY_TEMPLATE], {
       timeoutMs: 20_000,
       maxOutputBytes: JJ_STATUS_MAX_OUTPUT_BYTES,
+      retryStaleWorkingCopy,
     });
     return yield* Effect.forEach(
       result.stdout.split("\n").filter((line) => line.trim().length > 0),
@@ -510,13 +525,16 @@ export const makeVcsDriver = Effect.gen(function* () {
     );
   });
 
-  const readBookmarks = Effect.fn("JjVcsDriver.readBookmarks")(function* (cwd: string) {
+  const readBookmarks = Effect.fn("JjVcsDriver.readBookmarks")(function* (
+    cwd: string,
+    retryStaleWorkingCopy = false,
+  ) {
     const operation = "JjVcsDriver.readBookmarks";
     const result = yield* runJj(
       operation,
       cwd,
       ["bookmark", "list", "--all-remotes", "-T", 'json(self) ++ "\\n"'],
-      { timeoutMs: 20_000, maxOutputBytes: JJ_STATUS_MAX_OUTPUT_BYTES },
+      { timeoutMs: 20_000, maxOutputBytes: JJ_STATUS_MAX_OUTPUT_BYTES, retryStaleWorkingCopy },
     );
     if (result.stdoutTruncated || result.stderrTruncated) {
       return yield* new VcsProcessExitError({
@@ -757,7 +775,7 @@ export const makeVcsDriver = Effect.gen(function* () {
     "JjVcsDriver.listRefs",
   )(function* (input) {
     const [bookmarks, workingCopy] = yield* Effect.all(
-      [readBookmarks(input.cwd), readWorkingCopyCommit(input.cwd)],
+      [readBookmarks(input.cwd, true), readWorkingCopyCommit(input.cwd, "@", true)],
       { concurrency: "unbounded" },
     );
     const userBookmarks = bookmarks.filter((bookmark) => bookmark.remote !== "git");
@@ -812,9 +830,9 @@ export const makeVcsDriver = Effect.gen(function* () {
     const [workingCopy, diffEntries, bookmarks, remotes, workspaces, juzuProbe, rootPath] =
       yield* Effect.all(
         [
-          readWorkingCopyCommit(input.cwd),
-          readDiffEntries(input.cwd),
-          readBookmarks(input.cwd),
+          readWorkingCopyCommit(input.cwd, "@", true),
+          readDiffEntries(input.cwd, true),
+          readBookmarks(input.cwd, true),
           listRemotes(input.cwd),
           readWorkspaces(input.cwd),
           process

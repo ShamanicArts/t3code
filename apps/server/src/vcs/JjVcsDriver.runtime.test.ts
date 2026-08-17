@@ -75,6 +75,40 @@ function requireJjOperations(driver: VcsDriver.VcsDriver["Service"]) {
   };
 }
 
+it("reads status and refs when another workspace makes the working copy stale", () =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const { cwd, driver, root } = yield* makeRepo;
+      const ops = requireJjOperations(driver);
+      const sibling = NodePath.join(root, "sibling");
+      NodeChildProcess.execFileSync("jj", ["-R", cwd, "workspace", "add", sibling], {
+        stdio: "ignore",
+      });
+      const originalCommit = NodeChildProcess.execFileSync(
+        "jj",
+        ["--ignore-working-copy", "-R", cwd, "log", "--no-graph", "-r", "@", "-T", "commit_id"],
+        { encoding: "utf8" },
+      ).trim();
+      NodeChildProcess.execFileSync("jj", ["-R", sibling, "new", "root()"], { stdio: "ignore" });
+      const siblingCommit = NodeChildProcess.execFileSync(
+        "jj",
+        ["--ignore-working-copy", "-R", sibling, "log", "--no-graph", "-r", "@", "-T", "commit_id"],
+        { encoding: "utf8" },
+      ).trim();
+      NodeChildProcess.execFileSync(
+        "jj",
+        ["-R", sibling, "rebase", "-r", originalCommit, "-d", siblingCommit],
+        { stdio: "ignore" },
+      );
+
+      const status = yield* ops.status({ cwd });
+      const refs = yield* ops.listRefs({ cwd, limit: 100 });
+
+      expect(status.isRepo).toBe(true);
+      expect(refs.isRepo).toBe(true);
+    }).pipe(Effect.scoped, Effect.provide(TestLayer)),
+  ));
+
 it("detects and operates on the nearest JJ repository from nested paths", () =>
   Effect.runPromise(
     Effect.gen(function* () {

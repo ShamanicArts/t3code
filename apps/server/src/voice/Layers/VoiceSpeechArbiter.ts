@@ -1,5 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as DateTime from "effect/DateTime";
+import * as Duration from "effect/Duration";
 import * as Layer from "effect/Layer";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
@@ -30,6 +31,12 @@ interface CallSpeechState {
   readonly authoredQueue: ReadonlyArray<VoiceSpeechAttempt>;
   readonly commentaryQueue: ReadonlyArray<VoiceSpeechAttempt>;
   readonly pendingAmbient: VoiceSpeechAttempt | null;
+}
+
+interface EnqueueResult {
+  readonly accepted: boolean;
+  readonly superseded: ReadonlyArray<VoiceSpeechAttempt>;
+  readonly queuedAttempt: VoiceSpeechAttempt | undefined;
 }
 
 const MAX_COMPACTED_SPEECH_CHARS = 1_600;
@@ -73,7 +80,7 @@ const compactSpeechText = (texts: ReadonlyArray<string>): string => {
 };
 
 const outputTerminalLease = (attempt: VoiceSpeechAttempt) =>
-  `${Math.min(30, Math.max(12, Math.ceil(attempt.requestedText.length * 0.055 + 8)))} seconds`;
+  Duration.seconds(Math.min(30, Math.max(12, Math.ceil(attempt.requestedText.length * 0.055 + 8))));
 
 const completionFrom = (
   active: ActiveAttempt,
@@ -221,7 +228,7 @@ export const makeVoiceSpeechArbiter = Effect.fn("VoiceSpeechArbiter.make")(funct
   const enqueue: VoiceSpeechArbiterShape["enqueue"] = Effect.fn("VoiceSpeechArbiter.enqueue")(
     function* (attempt) {
       const queued = yield* stateMutex.withPermits(1)(
-        Ref.modify(statesRef, (states) => {
+        Ref.modify(statesRef, (states): readonly [EnqueueResult, Map<string, CallSpeechState>] => {
           const key = sessionKey(attempt.session);
           const current = stateFor(states, attempt.session);
           if (

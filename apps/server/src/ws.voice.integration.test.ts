@@ -522,7 +522,10 @@ describe("authenticated voice RPC vertical integration", () => {
         assert.strictEqual(callStarted.answerSdp, "answer-sdp");
         assert.include(transportStarts[0]?.prompt ?? "", "low-latency conversation");
         assert.isFalse(transportStarts[0]?.includeStartupContext);
-        assert.deepStrictEqual(transportStarts[0]?.initialItems, [
+        const initialItems = transportStarts[0]?.initialItems ?? [];
+        assert.strictEqual(initialItems[0]?.role, "developer");
+        assert.include(initialItems[0]?.text ?? "", "Authoritative app-owned Call attachment");
+        assert.deepStrictEqual(initialItems.slice(1), [
           { role: "user", text: "The provider reconnect is the current task." },
           { role: "assistant", text: "I am tracing the provider session." },
         ]);

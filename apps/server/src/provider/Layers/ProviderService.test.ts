@@ -31,6 +31,7 @@ import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Metric from "effect/Metric";
 import * as Option from "effect/Option";
+import * as Predicate from "effect/Predicate";
 import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
@@ -65,10 +66,10 @@ import {
 import * as ServerConfig from "../../config.ts";
 import * as ServerSettings from "../../serverSettings.ts";
 import * as AnalyticsService from "../../telemetry/AnalyticsService.ts";
-import { makeAdapterRegistryMock } from "../testUtils/providerAdapterRegistryMock.ts";
+import type { McpCredentialProfile } from "../../mcp/McpInvocationContext.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import * as McpSessionRegistry from "../../mcp/McpSessionRegistry.ts";
-import type { McpCredentialProfile } from "../../mcp/McpInvocationContext.ts";
+import { makeAdapterRegistryMock } from "../testUtils/providerAdapterRegistryMock.ts";
 
 const defaultServerSettingsLayer = ServerSettings.ServerSettingsService.layerTest();
 const serverConfigTestLayer = ServerConfig.layerTest(process.cwd(), process.cwd()).pipe(
@@ -683,6 +684,70 @@ it.effect("ProviderServiceLive rejects new sessions for disabled custom instance
 );
 
 const routing = makeProviderServiceLayer();
+
+const terminalPersistence = makeProviderServiceLayer();
+terminalPersistence.layer("ProviderServiceLive terminal persistence", (it) => {
+  it.effect("clears a completed Codex turn before the next idle send", () =>
+    Effect.gen(function* () {
+      const provider = yield* ProviderService.ProviderService;
+      const runtimeRepository = yield* ProviderSessionRuntime.ProviderSessionRuntimeRepository;
+      const threadId = asThreadId("thread-codex-terminal-persistence");
+      const session = yield* provider.startSession(threadId, {
+        provider: CODEX_DRIVER,
+        providerInstanceId: codexInstanceId,
+        threadId,
+        runtimeMode: "full-access",
+      });
+      const first = yield* provider.sendTurn({
+        threadId,
+        input: "first",
+        attachments: [],
+        expectedTurnId: null,
+      });
+
+      terminalPersistence.codex.updateSession(threadId, (current) => ({
+        ...current,
+        status: "ready",
+        // Adapter sessions clear a completed turn by omitting activeTurnId;
+        // ProviderService normalizes the persisted runtime field to null.
+        activeTurnId: undefined,
+        updatedAt: "2026-01-01T00:00:01.000Z",
+      }));
+      yield* advanceTestClock(50);
+      terminalPersistence.codex.emit({
+        type: "turn.completed",
+        eventId: asEventId("evt-codex-terminal-persistence"),
+        provider: CODEX_DRIVER,
+        createdAt: "2026-01-01T00:00:01.000Z",
+        threadId,
+        turnId: first.turnId,
+        status: "completed",
+      });
+      yield* advanceTestClock(50);
+
+      const settledRuntime = Option.getOrThrowWith(
+        yield* runtimeRepository.getByThreadId({ threadId }),
+        () => new Error("expected a persisted runtime after terminal settlement"),
+      );
+      const payload = settledRuntime.runtimePayload;
+      if (!Predicate.isObject(payload)) {
+        return yield* Effect.die("expected the persisted runtime payload to be an object");
+      }
+      assert.equal(payload.activeTurnId, null);
+      assert.equal(payload.lastRuntimeEvent, "provider.turn.completed");
+
+      terminalPersistence.codex.readThread.mockClear();
+      yield* provider.sendTurn({
+        threadId: session.threadId,
+        input: "second",
+        attachments: [],
+        expectedTurnId: null,
+      });
+
+      assert.equal(terminalPersistence.codex.readThread.mock.calls.length, 0);
+    }),
+  );
+});
 
 it.effect("ProviderServiceLive writes canonical events to the emitting thread segment", () =>
   Effect.gen(function* () {
@@ -2028,7 +2093,9 @@ routing.layer("ProviderServiceLive routing", (it) => {
                     environmentId,
                   },
                 }
-              : requestedProfile;
+              : requestedProfile.kind === "durable-thread-controller"
+                ? { ...requestedProfile, providerIdentity: undefined }
+                : requestedProfile;
           return {
             config: {
               credentialId: `credential-${profile.kind}`,
@@ -2632,6 +2699,170 @@ fanout.layer("ProviderServiceLive fanout", (it) => {
 
 const validation = makeProviderServiceLayer();
 validation.layer("ProviderServiceLive validation", (it) => {
+  it.effect(
+    "issues and provider-binds a durable controller credential only for an explicit grant",
+    () => {
+      const requests: Array<McpSessionRegistry.McpCredentialRequest> = [];
+      const bound: Array<{ readonly credentialId: string; readonly providerThreadId: string }> = [];
+      const issue = vi
+        .spyOn(McpSessionRegistry, "issueActiveMcpCredential")
+        .mockImplementation((request) =>
+          Effect.sync(() => {
+            requests.push(request);
+            const profile =
+              request.profile?.kind === "durable-thread-controller"
+                ? {
+                    ...request.profile,
+                    providerIdentity: undefined,
+                  }
+                : ({ kind: "standard-provider" } as const);
+            return {
+              config: {
+                credentialId: `credential-${profile.kind}`,
+                environmentId: "environment-durable-controller" as never,
+                threadId: request.threadId,
+                providerSessionId: `mcp-${profile.kind}`,
+                providerInstanceId: request.providerInstanceId,
+                profile,
+                endpoint:
+                  profile.kind === "durable-thread-controller"
+                    ? "http://127.0.0.1/mcp/controller"
+                    : "http://127.0.0.1/mcp",
+                authorizationHeader: `Bearer token-${profile.kind}`,
+              },
+            };
+          }),
+        );
+      const bind = vi
+        .spyOn(McpSessionRegistry, "bindActiveControllerMcpProviderIdentity")
+        .mockImplementation((credentialId, identity) =>
+          Effect.sync(() => {
+            bound.push({
+              credentialId,
+              providerThreadId: identity.codexProviderThreadId,
+            });
+            return true;
+          }),
+        );
+
+      return Effect.gen(function* () {
+        const provider = yield* ProviderService.ProviderService;
+        const threadId = asThreadId("durable-controller-start");
+        yield* provider.startSession(threadId, {
+          provider: CODEX_DRIVER,
+          providerInstanceId: codexInstanceId,
+          threadId,
+          resumeCursor: { threadId: "provider-durable-controller" },
+          runtimeMode: "auto-accept-edits",
+          threadControlGrant: {
+            controllerThreadId: threadId,
+            authorizedRuntimeCeiling: "auto-accept-edits",
+            controlEnabled: true,
+          },
+        });
+
+        assert.deepEqual(
+          requests.map((request) => request.profile?.kind ?? "standard-provider"),
+          ["standard-provider", "durable-thread-controller"],
+        );
+        assert.deepEqual(bound, [
+          {
+            credentialId: "credential-durable-thread-controller",
+            providerThreadId: "provider-durable-controller",
+          },
+        ]);
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            issue.mockRestore();
+            bind.mockRestore();
+            McpProviderSession.clearAllMcpProviderSessions();
+          }),
+        ),
+      );
+    },
+  );
+
+  it.effect("restores and provider-binds a durable controller credential during recovery", () => {
+    const requests: McpSessionRegistry.McpCredentialRequest[] = [];
+    const bound: Array<{ readonly credentialId: string; readonly providerThreadId: string }> = [];
+    const issue = vi
+      .spyOn(McpSessionRegistry, "issueActiveMcpCredential")
+      .mockImplementation((request) =>
+        Effect.sync(() => {
+          requests.push(request);
+          const profile =
+            request.profile?.kind === "durable-thread-controller"
+              ? { ...request.profile, providerIdentity: undefined }
+              : ({ kind: "standard-provider" } as const);
+          return {
+            config: {
+              credentialId: `credential-${profile.kind}`,
+              environmentId: "environment-durable-controller-recovery" as never,
+              threadId: request.threadId,
+              providerSessionId: `mcp-${profile.kind}`,
+              providerInstanceId: request.providerInstanceId,
+              profile,
+              endpoint:
+                profile.kind === "durable-thread-controller"
+                  ? "http://127.0.0.1/mcp/controller"
+                  : "http://127.0.0.1/mcp",
+              authorizationHeader: `Bearer token-${profile.kind}`,
+            },
+          };
+        }),
+      );
+    const bind = vi
+      .spyOn(McpSessionRegistry, "bindActiveControllerMcpProviderIdentity")
+      .mockImplementation((credentialId, identity) =>
+        Effect.sync(() => {
+          bound.push({
+            credentialId,
+            providerThreadId: identity.codexProviderThreadId,
+          });
+          return true;
+        }),
+      );
+
+    return Effect.gen(function* () {
+      const provider = yield* ProviderService.ProviderService;
+      const threadId = asThreadId("durable-controller-recovery");
+      const recovered = yield* provider.recoverCreatedSession!({
+        provider: CODEX_DRIVER,
+        providerInstanceId: codexInstanceId,
+        threadId,
+        cwd: "/tmp/durable-controller-recovery",
+        runtimeMode: "auto-accept-edits",
+        threadSource: "durable-controller-recovery-source",
+        threadControlGrant: {
+          controllerThreadId: threadId,
+          authorizedRuntimeCeiling: "auto-accept-edits",
+          controlEnabled: true,
+        },
+      });
+
+      assert.equal(recovered.state, "adopted");
+      assert.deepEqual(
+        requests.map((request) => request.profile?.kind ?? "standard-provider"),
+        ["standard-provider", "durable-thread-controller"],
+      );
+      assert.deepEqual(bound, [
+        {
+          credentialId: "credential-durable-thread-controller",
+          providerThreadId: "recovered-durable-controller-recovery-source",
+        },
+      ]);
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          issue.mockRestore();
+          bind.mockRestore();
+          McpProviderSession.clearAllMcpProviderSessions();
+        }),
+      ),
+    );
+  });
+
   it.effect("reserves trusted runtime identity and realtime mode for managed voice purposes", () =>
     Effect.gen(function* () {
       const provider = yield* ProviderService.ProviderService;

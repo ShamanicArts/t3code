@@ -254,6 +254,16 @@ const makeVoiceRpcHandlers = (
       observeRpcEffect(WS_METHODS.voiceResetController, voiceController.resetController(input), {
         "rpc.aggregate": "voice",
       }),
+    [WS_METHODS.voicePrepareThreadCall]: (
+      input: Parameters<
+        VoiceController.VoiceControllerService["Service"]["prepareThreadCall"]
+      >[0],
+    ) =>
+      observeRpcEffect(
+        WS_METHODS.voicePrepareThreadCall,
+        voiceController.prepareThreadCall(input),
+        { "rpc.aggregate": "voice" },
+      ),
     [WS_METHODS.voiceStart]: (
       input: Parameters<VoiceController.VoiceControllerService["Service"]["start"]>[0],
     ) =>
