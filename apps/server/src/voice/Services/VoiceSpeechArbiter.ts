@@ -18,6 +18,8 @@ export interface VoiceSpeechAttempt {
   readonly groupId?: string;
   /** A terminal update may evict stale catch-up and progress speech. */
   readonly terminal?: boolean;
+  /** Identifies the deterministic narration checkpoint satisfied by this speech. */
+  readonly narrationKey?: string;
 }
 
 export interface VoiceSpeechCompletion extends VoiceSpeechAttempt {
@@ -40,6 +42,8 @@ export interface VoiceSpeechTranscriptObservation {
 
 export interface VoiceSpeechArbiterShape {
   readonly enqueue: (attempt: VoiceSpeechAttempt) => Effect.Effect<boolean>;
+  /** Blocks until a speech attempt has completed through the provider output lifecycle. */
+  readonly takeCompletion: Effect.Effect<VoiceSpeechCompletion>;
   /** Blocks until a speech attempt proves the realtime output lifecycle is wedged. */
   readonly takeFailure: Effect.Effect<VoiceSpeechFailure>;
   readonly observeOutputStarted: (session: ActiveVoiceSession) => Effect.Effect<void>;

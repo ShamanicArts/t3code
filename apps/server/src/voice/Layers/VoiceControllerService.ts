@@ -38,6 +38,7 @@ import { VoiceControllerActionRunner } from "../Services/VoiceControllerActionRu
 import {
   VoiceSpeechArbiter,
   type VoiceSpeechAttempt,
+  type VoiceSpeechCompletion,
   type VoiceSpeechFailure,
 } from "../Services/VoiceSpeechArbiter.ts";
 import { VoiceTargetMonitor } from "../Services/VoiceTargetMonitor.ts";
@@ -204,6 +205,21 @@ export const recoverVoiceSpeechFailure = Effect.fn("VoiceControllerService.recov
     }
   },
 );
+
+export function applyDeliveredNarration(
+  state: VoiceNarrationRuntimeState,
+  completion: VoiceSpeechCompletion,
+  completedAtMs: number,
+): VoiceNarrationRuntimeState {
+  if (completion.source !== "ambient" || completion.narrationKey === undefined) return state;
+  return {
+    ...state,
+    pending: state.pending?.key === completion.narrationKey ? null : state.pending,
+    lastNarratedKey: completion.narrationKey,
+    lastNarratedText: completion.requestedText,
+    lastSpeechAtMs: completedAtMs,
+  };
+}
 
 export function controllerHistoryDisplayText(text: string): string {
   const trimmed = text.trim();
@@ -1038,6 +1054,7 @@ export const makeVoiceControllerService = Effect.fn("VoiceControllerService.make
       readonly attemptId?: string;
       readonly groupId?: string;
       readonly terminal?: boolean;
+      readonly narrationKey?: string;
     }) {
       const session = Array.from((yield* transport.getSessions()).values()).find(
         (candidate) =>
@@ -1073,6 +1090,7 @@ export const makeVoiceControllerService = Effect.fn("VoiceControllerService.make
         requestedAt: createdAt,
         ...(input.groupId === undefined ? {} : { groupId: input.groupId }),
         ...(input.terminal === undefined ? {} : { terminal: input.terminal }),
+        ...(input.narrationKey === undefined ? {} : { narrationKey: input.narrationKey }),
       });
       if (accepted && input.source !== "ambient") {
         const nowMs = DateTime.toEpochMillis(yield* DateTime.now);
@@ -1139,25 +1157,12 @@ export const makeVoiceControllerService = Effect.fn("VoiceControllerService.make
           });
           if (!decision.speak || current.pending === null) return;
           const narratedKey = current.pending.key;
-          const spoken = yield* queueThreadCallSpeech({
+          yield* queueThreadCallSpeech({
             environmentId: session.environmentId,
             threadId: owner.threadId,
             text: decision.text,
             source: "ambient",
-          });
-          if (!spoken) return;
-          yield* Ref.update(narrationStatesRef, (states) => {
-            const next = new Map(states);
-            const latest = next.get(session.transportSessionId);
-            if (latest !== undefined) {
-              next.set(session.transportSessionId, {
-                ...latest,
-                lastNarratedKey: narratedKey,
-                lastNarratedText: decision.text,
-                lastSpeechAtMs: nowMs,
-              });
-            }
-            return next;
+            narrationKey: narratedKey,
           });
         }),
       );
@@ -1301,6 +1306,30 @@ export const makeVoiceControllerService = Effect.fn("VoiceControllerService.make
             .pipe(Effect.timeout(CONTROLLER_TEARDOWN_TIMEOUT), Effect.ignore),
       ),
     ),
+    Effect.forever,
+    Effect.forkScoped,
+  );
+  yield* speechArbiter.takeCompletion.pipe(
+    Effect.flatMap((completion) => {
+      if (completion.source !== "ambient" || completion.narrationKey === undefined) {
+        return Effect.void;
+      }
+      const completedAtMs = Date.parse(completion.completedAt);
+      return Ref.update(narrationStatesRef, (states) => {
+        const current = states.get(completion.session.transportSessionId);
+        if (current === undefined) return states;
+        const next = new Map(states);
+        next.set(
+          completion.session.transportSessionId,
+          applyDeliveredNarration(
+            current,
+            completion,
+            Number.isFinite(completedAtMs) ? completedAtMs : current.lastSpeechAtMs,
+          ),
+        );
+        return next;
+      });
+    }),
     Effect.forever,
     Effect.forkScoped,
   );

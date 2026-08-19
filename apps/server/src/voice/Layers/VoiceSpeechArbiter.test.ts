@@ -62,6 +62,54 @@ const attempt = (
 });
 
 describe("VoiceSpeechArbiter", () => {
+  it.effect("keeps one pending ambient request and reports its completed checkpoint", () =>
+    Effect.gen(function* () {
+      const lifecycle = yield* Ref.make<Array<string>>([]);
+      const arbiter = yield* makeVoiceSpeechArbiter(
+        () => Effect.void,
+        (event) => Ref.update(lifecycle, (all) => [...all, event.kind]),
+      );
+      const activeSession = session();
+      const blocker = attempt(activeSession, "authored", "authored", "Current answer.");
+      const ambient = {
+        ...attempt(activeSession, "ambient", "ambient", "I’m running the next check now."),
+        narrationKey: "tool-1:item.started",
+      };
+
+      yield* arbiter.enqueue(blocker);
+      assert.strictEqual(yield* arbiter.enqueue(ambient), true);
+      assert.strictEqual(yield* arbiter.enqueue({ ...ambient, attemptId: "duplicate" }), false);
+
+      yield* arbiter.observeTranscript({
+        session: activeSession,
+        itemId: VoiceTranscriptItemId.make("provider-authored"),
+        text: "Current answer.",
+        occurredAt: "2026-08-15T00:00:01.000Z",
+        outputDone: true,
+      });
+      yield* arbiter.observeTranscript({
+        session: activeSession,
+        itemId: VoiceTranscriptItemId.make("provider-ambient"),
+        text: "I’m running the next check now.",
+        occurredAt: "2026-08-15T00:00:02.000Z",
+        outputDone: true,
+      });
+
+      const completion = yield* arbiter.takeCompletion;
+      assert.strictEqual(completion.source, "authored");
+      const ambientCompletion = yield* arbiter.takeCompletion;
+      assert.strictEqual(ambientCompletion.narrationKey, "tool-1:item.started");
+      assert.deepStrictEqual(yield* Ref.get(lifecycle), [
+        "speech.queued",
+        "speech.started",
+        "speech.queued",
+        "speech.completed",
+        "speech.started",
+        "speech.completed",
+      ]);
+    }),
+  );
+
   it.effect("serializes speech and lets authored narration displace queued ambient work", () =>
     Effect.gen(function* () {
       const sent = yield* Ref.make<Array<string>>([]);

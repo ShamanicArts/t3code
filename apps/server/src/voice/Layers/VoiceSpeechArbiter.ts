@@ -34,6 +34,12 @@ interface CallSpeechState {
   readonly pendingAmbient: VoiceSpeechAttempt | null;
 }
 
+interface SpeechEnqueueDecision {
+  readonly accepted: boolean;
+  readonly superseded: ReadonlyArray<VoiceSpeechAttempt>;
+  readonly queuedAttempt: VoiceSpeechAttempt | undefined;
+}
+
 const MAX_COMPACTED_SPEECH_CHARS = 1_600;
 
 const emptyCallState = (session: ActiveVoiceSession): CallSpeechState => ({
@@ -106,6 +112,7 @@ export const makeVoiceSpeechArbiter = Effect.fn("VoiceSpeechArbiter.make")(funct
   }) => Effect.Effect<void> = () => Effect.void,
 ) {
   const statesRef = yield* Ref.make(new Map<string, CallSpeechState>());
+  const completionQueue = yield* Queue.unbounded<VoiceSpeechCompletion>();
   const failureQueue = yield* Queue.unbounded<VoiceSpeechFailure>();
   const stateMutex = yield* Semaphore.make(1);
 
@@ -225,19 +232,25 @@ export const makeVoiceSpeechArbiter = Effect.fn("VoiceSpeechArbiter.make")(funct
 
   const enqueue: VoiceSpeechArbiterShape["enqueue"] = Effect.fn("VoiceSpeechArbiter.enqueue")(
     function* (attempt) {
+      const rejected: SpeechEnqueueDecision = {
+        accepted: false,
+        superseded: [],
+        queuedAttempt: undefined,
+      };
       const queued = yield* stateMutex.withPermits(1)(
         Ref.modify(statesRef, (states) => {
           const key = sessionKey(attempt.session);
           const current = stateFor(states, attempt.session);
-          if (
+          const duplicatesActiveSpeech =
             (attempt.source === "ambient" || attempt.source === "commentary") &&
             current.active?.attempt.source === attempt.source &&
-            sameSemanticText(current.active.attempt.requestedText, attempt.requestedText)
-          ) {
-            return [
-              { accepted: false, superseded: [], queuedAttempt: undefined } as const,
-              states,
-            ] as const;
+            sameSemanticText(current.active.attempt.requestedText, attempt.requestedText);
+          const duplicatesPendingAmbient =
+            attempt.source === "ambient" &&
+            current.pendingAmbient !== null &&
+            sameSemanticText(current.pendingAmbient.requestedText, attempt.requestedText);
+          if (duplicatesActiveSpeech || duplicatesPendingAmbient) {
+            return [rejected, states] as const;
           }
           const next = new Map(states);
           if (
@@ -270,11 +283,7 @@ export const makeVoiceSpeechArbiter = Effect.fn("VoiceSpeechArbiter.make")(funct
             const duplicate = sameGroup.some((candidate) =>
               sameSemanticText(candidate.requestedText, attempt.requestedText),
             );
-            if (duplicate)
-              return [
-                { accepted: false, superseded: [], queuedAttempt: undefined } as const,
-                states,
-              ] as const;
+            if (duplicate) return [rejected, states] as const;
             const superseded = [
               ...current.commentaryQueue,
               ...(attempt.terminal === true
@@ -303,11 +312,7 @@ export const makeVoiceSpeechArbiter = Effect.fn("VoiceSpeechArbiter.make")(funct
           } else {
             next.set(key, {
               ...current,
-              pendingAmbient:
-                current.pendingAmbient !== null &&
-                sameSemanticText(current.pendingAmbient.requestedText, attempt.requestedText)
-                  ? current.pendingAmbient
-                  : attempt,
+              pendingAmbient: attempt,
             });
           }
           return [
@@ -379,6 +384,7 @@ export const makeVoiceSpeechArbiter = Effect.fn("VoiceSpeechArbiter.make")(funct
         occurredAt: completion.completedAt,
         deliveredText: completion.deliveredText,
       });
+      yield* Queue.offer(completionQueue, completion);
     }
     yield* startNext(session);
     return completion;
@@ -442,6 +448,7 @@ export const makeVoiceSpeechArbiter = Effect.fn("VoiceSpeechArbiter.make")(funct
         occurredAt: observed.completion.completedAt,
         deliveredText: observed.completion.deliveredText,
       });
+      yield* Queue.offer(completionQueue, observed.completion);
     }
     if (input.outputDone) yield* startNext(input.session);
     return observed;
@@ -502,6 +509,7 @@ export const makeVoiceSpeechArbiter = Effect.fn("VoiceSpeechArbiter.make")(funct
 
   return VoiceSpeechArbiter.of({
     enqueue,
+    takeCompletion: Queue.take(completionQueue),
     takeFailure: Queue.take(failureQueue),
     observeOutputStarted,
     observeOutputDone,
@@ -541,6 +549,9 @@ export const VoiceSpeechArbiterLive = Layer.effect(
               requestedText: event.attempt.requestedText,
               ...(event.attempt.groupId === undefined ? {} : { groupId: event.attempt.groupId }),
               ...(event.attempt.terminal === undefined ? {} : { terminal: event.attempt.terminal }),
+              ...(event.attempt.narrationKey === undefined
+                ? {}
+                : { narrationKey: event.attempt.narrationKey }),
               ...(event.deliveredText === undefined ? {} : { deliveredText: event.deliveredText }),
               ...(event.failureReason === undefined ? {} : { failureReason: event.failureReason }),
             },

@@ -21,6 +21,7 @@ import * as Stream from "effect/Stream";
 
 import {
   appendVoiceSessionEvent,
+  applyDeliveredNarration,
   claimVoiceTargetPhase,
   confirmedControllerModelSelection,
   controllerHistoryDisplayText,
@@ -42,6 +43,27 @@ import {
 } from "./VoiceControllerService.ts";
 
 describe("VoiceControllerService coordination invariants", () => {
+  it("does not consume an automatic narration checkpoint until delivery completes", () => {
+    const state = {
+      pending: { key: "tool-1:item.started", text: "I’m running the next check now." },
+      lastNarratedKey: null,
+      lastNarratedText: null,
+      lastSpeechAtMs: 1_000,
+    };
+    const completion = {
+      source: "ambient",
+      narrationKey: "tool-1:item.started",
+      requestedText: "I’m running the next check now.",
+    } as never;
+
+    assert.deepStrictEqual(applyDeliveredNarration(state, completion, 16_000), {
+      pending: null,
+      lastNarratedKey: "tool-1:item.started",
+      lastNarratedText: "I’m running the next check now.",
+      lastSpeechAtMs: 16_000,
+    });
+  });
+
   it("only resumes catch-up from a detach belonging to the same durable Call", () => {
     const detached = {
       callId: VoiceCallId.make("call-1"),
