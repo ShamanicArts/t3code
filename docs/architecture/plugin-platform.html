@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>shuv2code Plugin Platform — Architecture Explainer</title>
+<style>
+  :root {
+    --canvas: #0c1119;
+    --surface: #161d28;
+    --elevated: #1f2835;
+    --ink: #e7ecf3;
+    --muted: #8995a6;
+    --brick: #d35c46;
+    --green: #4a9d6e;
+    --blue: #176bff;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--canvas);
+    color: var(--ink);
+    font: 15px/1.6 ui-monospace, "SF Mono", Menlo, monospace;
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+  h1 { font-size: 26px; margin-bottom: 4px; }
+  h1 .accent { color: var(--brick); }
+  .subtitle { color: var(--muted); margin-bottom: 40px; }
+  h2 { font-size: 18px; color: var(--brick); margin: 44px 0 14px; border-bottom: 1px solid var(--elevated); padding-bottom: 8px; }
+  p { margin-bottom: 12px; }
+  .muted { color: var(--muted); }
+  .diagram { background: var(--surface); border: 1px solid var(--elevated); border-radius: 10px; padding: 20px; margin: 16px 0; overflow-x: auto; }
+  pre { font-size: 12.5px; line-height: 1.5; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13.5px; }
+  th { text-align: left; color: var(--muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--elevated); }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--surface); vertical-align: top; }
+  code { background: var(--elevated); padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  .pill { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 11.5px; border: 1px solid; }
+  .p1 { color: var(--green); border-color: var(--green); }
+  .p2 { color: var(--blue); border-color: var(--blue); }
+  .p3 { color: var(--muted); border-color: var(--muted); }
+  .before-after { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 720px) { .before-after { grid-template-columns: 1fr; } }
+  .ba-label { color: var(--muted); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+  .signature { background: var(--surface); border-radius: 8px; padding: 14px 16px; margin: 10px 0; font-size: 13px; overflow-x: auto; }
+  .sig-del { color: var(--brick); }
+  .sig-add { color: var(--green); }
+</style>
+</head>
+<body>
+
+<h1>shuv2code <span class="accent">Plugin Platform</span></h1>
+<p class="subtitle">Human explainer for PLAN-105 → PLAN-110 · generated 2026-08-24 · plans are the source of truth; this is the grok layer.</p>
+
+<h2>The one-paragraph version</h2>
+<p>shuv2code is already ~85% hexagonal: a pure orchestration core, ports as Effect services, adapters at the edges. This bundle <em>finishes</em> that architecture and then makes the seams <em>loadable</em>. Features become plugins with manifests; the orchestration core stops gaining feature-specific branches; providers, VCS, voice, and surfaces all load through the same path an external author would use. Full trust by default — restrictions are configured, never begged for.</p>
+
+<h2>Architecture: before / after</h2>
+<div class="before-after">
+  <div>
+    <div class="ba-label">Before</div>
+    <div class="diagram"><pre>
+┌──────────────────────────────┐
+│ apps/web · mobile · desktop  │
+└──────────────┬───────────────┘
+               │ Effect RPC
+┌──────────────▼───────────────┐
+│         apps/server          │
+│ ┌──────────────────────────┐ │
+│ │ orchestration core       │ │
+│ │ decider ← voice cases    │ │
+│ │ projector ← voice cases  │ │
+│ ├──────────────────────────┤ │
+│ │ builtInDrivers (static)  │ │
+│ │ VcsDriverRegistry(static)│ │
+│ │ voice/ automations/ ...  │ │
+│ └──────────────────────────┘ │
+└──────────────────────────────┘
+
+Features edit the center.
+Drivers wired at compile time.
+Surfaces hard-mounted in web.
+</pre></div>
+  </div>
+  <div>
+    <div class="ba-label">After</div>
+    <div class="diagram"><pre>
+┌──────────────────────────────┐
+│ apps/web · mobile · desktop  │
+│   slot registry + declarative│
+│   bases (mobile parity rule) │
+└──────────────┬───────────────┘
+               │ Effect RPC
+┌──────────────▼───────────────┐
+│      hexagonal core          │
+│  pure decider/projector      │
+│  ports only — zero features  │
+├──────────────────────────────┤
+│  plugin loader (boot)        │
+│  ┌─────┐ ┌─────┐ ┌───────┐  │
+│  │codex│ │ jj  │ │ voice │  │
+│  └─────┘ └─────┘ └───────┘  │
+│  ┌────────┐ ┌─────────────┐  │
+│  │claude* │ │ …your plugin │  │
+│  └────────┘ └─────────────┘  │
+└──────────────────────────────┘
+
+* second-party tier
+Features extend via namespaces.
+Everything loads the same way.
+</pre></div>
+</div>
+
+<h2>The signature change that matters most</h2>
+<p>Adding a feature used to mean editing the pure core. It never means that again:</p>
+<div class="signature">
+<span class="sig-del">- // decider.ts — case "thread.voice.exchange.append": { ... }</span><br>
+<span class="sig-add">+ // decider.ts — one generic delegation:</span><br>
+<span class="sig-add">+ dispatchExtensionCommand(envelope, state) → owningPlugin.decide(command, state) → events</span>
+</div>
+
+<h2>The trust model</h2>
+<table>
+<tr><th>Layer</th><th>Who decides</th><th>Mechanism</th></tr>
+<tr><td>Run this plugin at all?</td><td>You, in config</td><td>opencode-v2-style layered entries: global enablement, per-project declarations, location-relative resolution, project wins on conflict</td></tr>
+<tr><td>What can it touch?</td><td>You, optionally</td><td>Manifest capabilities are <em>restrictions you may impose</em>, not permissions you grant. Default: full trust.</td></tr>
+<tr><td>Is it enforced?</td><td>The software, honestly</td><td>In-process = trusted code, like npm lifecycle scripts. Three brokered chokepoints (secrets, exec, fs-outside-workspace) enforce declared restrictions. No sandboxing theater.</td></tr>
+</table>
+
+<h2>Party tiers</h2>
+<table>
+<tr><th>Tier</th><th>Members</th><th>Commitment</th></tr>
+<tr><td><span class="pill p1">first-party</span></td><td>codex, shuvcode</td><td>full support, full test parity</td></tr>
+<tr><td><span class="pill p2">second-party</span></td><td>claude, cursor, grok, opencode v1</td><td>works as today; CI smoke only</td></tr>
+<tr><td><span class="pill p3">third-party</span></td><td>anything external</td><td>experimental loader path; unsupported</td></tr>
+</table>
+
+<h2>Slice map (dependency order)</h2>
+<table>
+<tr><th>Plan</th><th>Slice</th><th>Proves</th></tr>
+<tr><td><code>PLAN-105</code></td><td>S0 machinery</td><td>manifests, loader, extension vocabulary, subscriptions</td></tr>
+<tr><td><code>PLAN-106</code></td><td>S1 provider plugins</td><td>provider port under real traffic</td></tr>
+<tr><td><code>PLAN-107</code></td><td>S1.5 surface slots</td><td>panels/renderers as registrations; mobile invariant</td></tr>
+<tr><td><code>PLAN-108</code></td><td>S2 VCS plugins</td><td>VCS port + forge-forward extension point (ERSC-ready)</td></tr>
+<tr><td><code>PLAN-109</code></td><td>S3 voice plugin</td><td>everything at once — the hardest migration, zero UX change</td></tr>
+<tr><td><code>PLAN-110</code></td><td>S4 second-party</td><td>external-shaped authors without first-party privilege</td></tr>
+</table>
+
+<h2>North star (shapes now, machinery never-yet)</h2>
+<p>Ports are instance-agnostic and placement-flexible: a plugin may someday run on your local instance acting on a cloud instance, or exist meaningfully only on mobile. Nothing cross-instance ships in this bundle — but no port shape will need to break when that day comes.</p>
+
+<h2>What is deliberately not built</h2>
+<p class="muted">No daemons. No bridge protocols. No marketplaces. No content addressing. No grammar versioning. No conformance kits. Every one of those exists elsewhere to protect strangers running untrusted code at distance. Our users are developers who chose the code. The moment that changes, the port shapes are ready — until then we build features.</p>
+
+</body>
+</html>

@@ -227,7 +227,10 @@ export function createOpenCodeV2Client(input: OpenCodeV2ClientInput) {
         }
       })();
       if (body && typeof body === "object") {
-        throw Object.assign(body, { status });
+        throw Object.assign(
+          new Error(`OpenCode V2 request failed with status ${status}: ${JSON.stringify(body)}`),
+          { status, body },
+        );
       }
       throw Object.assign(new Error(`OpenCode V2 request failed with status ${status}.`), {
         status,
@@ -394,6 +397,12 @@ export function createOpenCodeV2Client(input: OpenCodeV2ClientInput) {
       ) => data<unknown>("POST", sessionPath(sessionID, "/synthetic"), { body }),
       interrupt: (sessionID: string) =>
         request<void>("POST", sessionPath(sessionID, "/interrupt"), { empty: true }),
+      compact: (sessionID: string) =>
+        request<void>("POST", sessionPath(sessionID, "/compact"), {
+          query: { directory: input.directory },
+          body: {},
+          empty: true,
+        }),
       wait: (sessionID: string) =>
         request<void>("POST", sessionPath(sessionID, "/wait"), { empty: true }),
       active: () => data<Record<string, { readonly type?: string }>>("GET", "/api/session/active"),

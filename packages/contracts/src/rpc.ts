@@ -246,6 +246,7 @@ import {
   VoiceSessionStopResult,
   VoiceSubscribeEventsInput,
 } from "./realtimeVoice.ts";
+import { ProviderCompactThreadError, ProviderCompactThreadInput } from "./provider.ts";
 
 export const WS_METHODS = {
   // Project registry methods
@@ -274,6 +275,9 @@ export const WS_METHODS = {
   // Filesystem methods
   filesystemBrowse: "filesystem.browse",
   assetsCreateUrl: "assets.createUrl",
+
+  // Provider thread methods
+  threadCompact: "thread.compact",
 
   // VCS methods
   vcsPull: "vcs.pull",
@@ -1223,6 +1227,12 @@ export const WsSubscribeResourceTelemetryRpc = Rpc.make(WS_METHODS.subscribeReso
   stream: true,
 });
 
+export const WsThreadCompactRpc = Rpc.make(WS_METHODS.threadCompact, {
+  payload: ProviderCompactThreadInput,
+  success: Schema.Void,
+  error: Schema.Union([ProviderCompactThreadError, EnvironmentAuthorizationError]),
+});
+
 export const WsRpcGroup = RpcGroup.make(
   WsAutomationsListRpc,
   WsAutomationsGetRpc,
@@ -1294,6 +1304,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsShellOpenInEditorRpc,
   WsFilesystemBrowseRpc,
   WsAssetsCreateUrlRpc,
+  WsThreadCompactRpc,
   WsSubscribeVcsStatusRpc,
   WsVcsPullRpc,
   WsVcsFetchRpc,

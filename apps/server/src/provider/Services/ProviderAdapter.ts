@@ -10,6 +10,7 @@
 import type {
   ApprovalRequestId,
   ProviderApprovalDecision,
+  ProviderCompactThreadInput,
   ProviderDriverKind,
   ProviderUserInputAnswers,
   ProviderRuntimeEvent,
@@ -37,6 +38,8 @@ export interface ProviderAdapterCapabilities {
    * without starting or superseding it.
    */
   readonly turnSteering?: "same-turn" | "unsupported";
+  /** Declares whether the adapter exposes provider-native manual context compaction. */
+  readonly manualCompaction?: boolean;
   /** Decide whether a persisted session cursor represents durable recovery. */
   readonly hasDurableSessionRecovery?: (resumeCursor: unknown) => Effect.Effect<boolean>;
 }
@@ -66,6 +69,7 @@ export interface ProviderRealtimeStartInput {
   readonly threadId: ThreadId;
   readonly generation: number;
   readonly realtimeSessionId: string;
+  readonly model?: string;
   /** WebRTC SDP offer; omit for websocket/PCM transport. */
   readonly offerSdp?: string;
   readonly transportType?: "webrtc" | "websocket";
@@ -183,6 +187,8 @@ export interface ProviderAdapterShape<TError> {
    * Interrupt an active turn.
    */
   readonly interruptTurn: (threadId: ThreadId, turnId?: TurnId) => Effect.Effect<void, TError>;
+
+  readonly compactThread?: (input: ProviderCompactThreadInput) => Effect.Effect<void, TError>;
 
   /**
    * Respond to an interactive approval request.

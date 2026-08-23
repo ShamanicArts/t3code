@@ -85,6 +85,7 @@ export interface VoiceTransportCoordinatorShape {
     readonly controllerRuntime: ControllerRuntimeState;
     readonly environmentId: EnvironmentId;
     readonly workspaceRoot: string;
+    readonly realtimeModel: string;
     readonly onActivated: (session: ActiveVoiceSession) => Effect.Effect<void>;
   }) => Effect.Effect<VoiceSessionStartResult, VoiceControllerError>;
   readonly startThreadCallTransport: (input: {
@@ -105,6 +106,7 @@ export interface VoiceTransportCoordinatorShape {
       }>;
     };
     readonly transportModelSelection: ModelSelection;
+    readonly realtimeModel: string;
     readonly workspaceRoot: string;
     readonly threadSnapshotSequence: number;
   }) => Effect.Effect<VoiceSessionStartResult, VoiceControllerError>;
