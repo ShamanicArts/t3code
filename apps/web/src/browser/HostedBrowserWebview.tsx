@@ -20,11 +20,6 @@ import { acquireDesktopTab, type AcquiredDesktopTab } from "./desktopTabLifetime
 import { resolveHostedBrowserWebviewWrapperStyle } from "./hostedBrowserWebviewStyle";
 import { usePreviewWebviewConfig } from "./previewWebviewConfigState";
 import { useBrowserViewportResize } from "./useBrowserViewportResize";
-import {
-  INITIAL_WEBVIEW_CRASH_RECOVERY_STATE,
-  planWebviewCrashRecovery,
-  type WebviewCrashRecoveryState,
-} from "./webviewCrashRecovery";
 
 interface ElectronWebview extends HTMLElement {
   src: string;
@@ -55,7 +50,6 @@ export function HostedBrowserWebview(props: {
   const tabLeaseRef = useRef<AcquiredDesktopTab | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const webviewRef = useRef<ElectronWebview | null>(null);
-  const crashRecoveryRef = useRef<WebviewCrashRecoveryState>(INITIAL_WEBVIEW_CRASH_RECOVERY_STATE);
   const [aspectRatioLocked, setAspectRatioLocked] = useState(false);
   const presentation = useBrowserSurfaceStore(
     useShallow((state) => {
@@ -73,7 +67,6 @@ export function HostedBrowserWebview(props: {
   usePreviewBridge({ threadRef, tabId, runtimeTabId });
 
   useEffect(() => {
-    crashRecoveryRef.current = INITIAL_WEBVIEW_CRASH_RECOVERY_STATE;
     const lease = acquireDesktopTab(runtimeTabId);
     tabLeaseRef.current = lease;
     return () => {
@@ -81,14 +74,6 @@ export function HostedBrowserWebview(props: {
       lease.release();
     };
   }, [runtimeTabId]);
-
-  const [webviewGeneration, setWebviewGeneration] = useState(0);
-  const [recoverySrc, setRecoverySrc] = useState(initialSrc);
-  const latestUrlRef = useRef(initialUrl);
-
-  useEffect(() => {
-    latestUrlRef.current = initialUrl;
-  }, [initialUrl]);
 
   const setWebviewRef = useCallback((node: HTMLElement | null) => {
     webviewRef.current = node as ElectronWebview | null;
@@ -100,7 +85,6 @@ export function HostedBrowserWebview(props: {
     const bridge = previewBridge;
     if (!webview || !config || !bridge) return;
     let disposed = false;
-    let recoveryTimeout: ReturnType<typeof setTimeout> | null = null;
     const register = () => {
       const lease = tabLeaseRef.current;
       if (!lease) return;
@@ -120,31 +104,15 @@ export function HostedBrowserWebview(props: {
         }
       })();
     };
-    const recoverGuest = () => {
-      if (disposed || recoveryTimeout !== null) return;
-      const recovery = planWebviewCrashRecovery(crashRecoveryRef.current, Date.now());
-      if (!recovery) return;
-      crashRecoveryRef.current = recovery.state;
-      recoveryTimeout = setTimeout(() => {
-        recoveryTimeout = null;
-        if (!disposed) {
-          setRecoverySrc(latestUrlRef.current ?? initialSrc);
-          setWebviewGeneration((generation) => generation + 1);
-        }
-      }, recovery.delayMs);
-    };
     webview.addEventListener("did-attach", register);
     webview.addEventListener("dom-ready", register);
-    webview.addEventListener("render-process-gone", recoverGuest);
     register();
     return () => {
       disposed = true;
-      if (recoveryTimeout !== null) clearTimeout(recoveryTimeout);
       webview.removeEventListener("did-attach", register);
       webview.removeEventListener("dom-ready", register);
-      webview.removeEventListener("render-process-gone", recoverGuest);
     };
-  }, [config, initialSrc, runtimeTabId, webviewGeneration]);
+  }, [config, runtimeTabId]);
 
   const active = presentation.visible && presentation.rect !== null;
   const lastRect = presentation.rect;
@@ -257,9 +225,8 @@ export function HostedBrowserWebview(props: {
           />
         ) : null}
         <webview
-          key={webviewGeneration}
           ref={setWebviewRef}
-          src={webviewGeneration === 0 ? initialSrc : recoverySrc}
+          src={initialSrc}
           partition={config.partition}
           webpreferences={config.webPreferences}
           {...(config.preloadUrl ? { preload: config.preloadUrl } : {})}

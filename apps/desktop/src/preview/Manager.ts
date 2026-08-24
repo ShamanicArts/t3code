@@ -273,6 +273,11 @@ const previewAutomationTargetLabel = (
     ? "the focused element"
     : `${selectorKind} (${selectorLength ?? 0} characters)`;
 
+const isTerminalPreviewTargetError = (cause: unknown): boolean => {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  return /target closed|webcontents (?:was )?destroyed|session closed/i.test(message);
+};
+
 interface PreviewOperationContext {
   readonly operation: string;
   readonly tabId?: string;
@@ -406,6 +411,11 @@ interface BrowserDiagnostics {
   readonly requests: ReadonlyMap<string, { url: string; method: string }>;
 }
 
+interface PreviewCircuitBreakerDetails {
+  readonly reason: string;
+  readonly exitCode: number;
+}
+
 type PointerEventListener = (event: DesktopPreviewPointerEvent) => Effect.Effect<void>;
 
 const APP_FORWARDED_SHORTCUTS: ReadonlyArray<{
@@ -475,6 +485,9 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
   const pictureInPictureAspectRatiosRef = yield* Ref.make<ReadonlyMap<string, number>>(new Map());
   const pictureInPictureMutationSemaphore = yield* Semaphore.make(1);
   const closingTabIdsRef = yield* Ref.make<ReadonlySet<string>>(new Set());
+  const circuitBreakersRef = yield* Ref.make<ReadonlyMap<string, PreviewCircuitBreakerDetails>>(
+    new Map(),
+  );
   const tabLifecycleLocks = new Map<
     string,
     { readonly semaphore: Semaphore.Semaphore; users: number }
@@ -510,6 +523,29 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
     update(copy);
     return copy;
   };
+  const openCircuitBreaker = Effect.fn("PreviewManager.openCircuitBreaker")(function* (
+    tabId: string,
+    webContentsId: number,
+    details: PreviewCircuitBreakerDetails,
+  ) {
+    const claimed = yield* Ref.modify(circuitBreakersRef, (breakers) => {
+      if (breakers.has(tabId)) return [false, breakers] as const;
+      return [
+        true,
+        replaceMap(breakers, (copy) => {
+          copy.set(tabId, details);
+        }),
+      ] as const;
+    });
+    if (claimed) {
+      yield* Effect.logWarning("Preview circuit breaker opened after process failure.", {
+        tabId,
+        webContentsId,
+        ...details,
+      });
+    }
+    return claimed;
+  });
   const withTabLifecycleLock = <A, E, R>(
     tabId: string,
     effect: Effect.Effect<A, E, R>,
@@ -636,6 +672,10 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
   const requireWebContents = Effect.fn("PreviewManager.requireWebContents")(function* (
     tabId: string,
   ) {
+    const circuitBreaker = (yield* Ref.get(circuitBreakersRef)).get(tabId);
+    if (circuitBreaker) {
+      return yield* new PreviewCircuitBreakerOpenError({ tabId, ...circuitBreaker });
+    }
     const tabs = yield* SynchronizedRef.get(tabsRef);
     const tab = tabs.get(tabId);
     if (!tab) {
@@ -1061,7 +1101,16 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
     };
     yield* pushAction(tabId, actionEvent);
     const epoch = (yield* Ref.get(controlEpochRef)).get(tabId) ?? 0;
-    const control = yield* ensureControlSession(wc);
+    const control = yield* ensureControlSession(wc).pipe(
+      Effect.tapError((error) =>
+        isPreviewOperationError(error) && isTerminalPreviewTargetError(error.cause)
+          ? openCircuitBreaker(tabId, wc.id, {
+              reason: "target-closed",
+              exitCode: -1,
+            }).pipe(Effect.asVoid)
+          : Effect.void,
+      ),
+    );
     const execute = Effect.fn("PreviewManager.executeControlAction")(function* () {
       yield* update(tabId, { controller: "agent" });
       const send: SendCommand = Effect.fn("PreviewManager.sendCommand")(
@@ -1077,6 +1126,15 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
           const result = yield* attemptPromise(
             { operation: `${action}.${method}`, tabId, webContentsId: wc.id },
             () => wc.debugger.sendCommand(method, commandParams),
+          ).pipe(
+            Effect.tapError((error) =>
+              isTerminalPreviewTargetError(error.cause)
+                ? openCircuitBreaker(tabId, wc.id, {
+                    reason: "target-closed",
+                    exitCode: -1,
+                  }).pipe(Effect.asVoid)
+                : Effect.void,
+            ),
           );
           const after = (yield* Ref.get(controlEpochRef)).get(tabId) ?? 0;
           if (after !== epoch) {
@@ -1238,6 +1296,58 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
     }
   });
 
+  const tripCircuitBreaker = Effect.fn("PreviewManager.tripCircuitBreaker")(function* (
+    tabId: string,
+    webContentsId: number,
+    expectedGeneration: number | undefined,
+    details: PreviewCircuitBreakerDetails,
+  ) {
+    yield* withTabLifecycleLock(
+      tabId,
+      Effect.gen(function* () {
+        const current = (yield* SynchronizedRef.get(tabsRef)).get(tabId);
+        if (
+          !current ||
+          current.webContentsId !== webContentsId ||
+          tabLifecycleGenerations.get(tabId) !== expectedGeneration
+        ) {
+          return;
+        }
+        yield* openCircuitBreaker(tabId, webContentsId, details);
+        yield* Effect.all(
+          [
+            detachControlSession(webContentsId),
+            detachListeners(webContentsId),
+            cancelPickElement(tabId),
+          ],
+          { concurrency: 3, discard: true },
+        );
+        const updatedAt = yield* currentIso;
+        const next: PreviewTabState = {
+          ...current,
+          webContentsId: null,
+          navStatus: {
+            kind: "LoadFailed",
+            url: current.navStatus.kind === "Idle" ? "about:blank" : current.navStatus.url,
+            title: current.navStatus.kind === "Idle" ? "" : current.navStatus.title,
+            code: details.exitCode,
+            description: `Preview renderer process gone (${details.reason}); close and reopen the preview to continue`,
+          },
+          canGoBack: false,
+          canGoForward: false,
+          controller: "none",
+          updatedAt,
+        };
+        yield* SynchronizedRef.update(tabsRef, (tabs) =>
+          replaceMap(tabs, (copy) => {
+            copy.set(tabId, next);
+          }),
+        );
+        yield* emit(tabId, next);
+      }),
+    );
+  });
+
   const isAppShortcut = (input: Electron.Input): boolean =>
     input.type === "keyDown" &&
     APP_FORWARDED_SHORTCUTS.some(
@@ -1260,6 +1370,7 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
     tabId: string,
     wc: Electron.WebContents,
   ) {
+    const expectedGeneration = tabLifecycleGenerations.get(tabId);
     const scope = yield* Scope.fork(parentScope, "sequential");
     const attachmentId = Symbol();
     let documentId = 0;
@@ -1510,6 +1621,25 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
       }
       runFork(forwardShortcut(event, input));
     };
+    const renderProcessGone = (
+      _event: Electron.Event,
+      details: Electron.RenderProcessGoneDetails,
+    ): void => {
+      runFork(
+        tripCircuitBreaker(tabId, wc.id, expectedGeneration, {
+          reason: details.reason,
+          exitCode: details.exitCode,
+        }),
+      );
+    };
+    const webContentsDestroyed = (): void => {
+      runFork(
+        tripCircuitBreaker(tabId, wc.id, expectedGeneration, {
+          reason: "webcontents-destroyed",
+          exitCode: -1,
+        }),
+      );
+    };
     yield* Scope.addFinalizer(
       scope,
       attempt({ operation: "detachListeners", tabId, webContentsId: wc.id }, () => {
@@ -1522,6 +1652,8 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
         wc.off("did-start-loading", sync);
         wc.off("did-stop-loading", sync);
         wc.off("did-fail-load", failed as never);
+        wc.off("render-process-gone", renderProcessGone);
+        wc.off("destroyed", webContentsDestroyed);
         wc.off("before-input-event", beforeInput);
         wc.ipc.off(HUMAN_INPUT_CHANNEL, humanInput);
         wc.ipc.off(MOUSE_NAVIGATE_CHANNEL, mouseNavigate);
@@ -1537,6 +1669,8 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
         wc.on("did-start-loading", sync);
         wc.on("did-stop-loading", sync);
         wc.on("did-fail-load", failed as never);
+        wc.on("render-process-gone", renderProcessGone);
+        wc.on("destroyed", webContentsDestroyed);
         wc.ipc.on(HUMAN_INPUT_CHANNEL, humanInput);
         wc.ipc.on(MOUSE_NAVIGATE_CHANNEL, mouseNavigate);
         wc.setWindowOpenHandler(({ url }) => {
@@ -1603,6 +1737,11 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
     );
     if (result.created) {
       tabLifecycleGenerations.set(tabId, (tabLifecycleGenerations.get(tabId) ?? 0) + 1);
+      yield* Ref.update(circuitBreakersRef, (breakers) =>
+        replaceMap(breakers, (copy) => {
+          copy.delete(tabId);
+        }),
+      );
     }
     yield* emit(tabId, result.state);
     return result.state;
@@ -1614,6 +1753,11 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
 
   const closeTabUnlocked = Effect.fn("PreviewManager.closeTabUnlocked")(function* (tabId: string) {
     if (!(yield* SynchronizedRef.get(tabsRef)).has(tabId)) return;
+    yield* Ref.update(circuitBreakersRef, (breakers) =>
+      replaceMap(breakers, (copy) => {
+        copy.delete(tabId);
+      }),
+    );
     yield* Effect.all(
       [
         cancelPickElement(tabId),
@@ -1682,6 +1826,10 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
     webContentsId: number,
     expectedGeneration: number | undefined,
   ) {
+    const circuitBreaker = (yield* Ref.get(circuitBreakersRef)).get(tabId);
+    if (circuitBreaker) {
+      return yield* new PreviewCircuitBreakerOpenError({ tabId, ...circuitBreaker });
+    }
     const tab = (yield* SynchronizedRef.get(tabsRef)).get(tabId);
     if (
       !tab ||
@@ -1822,6 +1970,10 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
   });
 
   const navigate = Effect.fn("PreviewManager.navigate")(function* (tabId: string, rawUrl: string) {
+    const circuitBreaker = (yield* Ref.get(circuitBreakersRef)).get(tabId);
+    if (circuitBreaker) {
+      return yield* new PreviewCircuitBreakerOpenError({ tabId, ...circuitBreaker });
+    }
     const url = yield* attempt({ operation: "navigate.normalizeUrl", tabId }, () =>
       normalizePreviewUrl(rawUrl),
     );
@@ -2765,7 +2917,8 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
 
   const automationStatus = Effect.fn("PreviewManager.automationStatus")(function* (tabId: string) {
     const tab = (yield* SynchronizedRef.get(tabsRef)).get(tabId);
-    if (!tab || tab.webContentsId == null) {
+    const circuitBreaker = (yield* Ref.get(circuitBreakersRef)).get(tabId);
+    if (!tab || tab.webContentsId == null || circuitBreaker) {
       const navStatus = tab?.navStatus;
       return {
         available: false,
@@ -3632,6 +3785,19 @@ export class PreviewWebviewNotInitializedError extends Schema.TaggedErrorClass<P
   }
 }
 
+export class PreviewCircuitBreakerOpenError extends Schema.TaggedErrorClass<PreviewCircuitBreakerOpenError>()(
+  "PreviewCircuitBreakerOpenError",
+  {
+    tabId: Schema.String,
+    reason: Schema.String,
+    exitCode: Schema.Number,
+  },
+) {
+  override get message(): string {
+    return `Preview tab "${this.tabId}" is disabled after its renderer exited (${this.reason}, code ${this.exitCode}); close and reopen the preview to continue`;
+  }
+}
+
 export class PreviewOperationError extends Schema.TaggedErrorClass<PreviewOperationError>()(
   "PreviewOperationError",
   {
@@ -3853,6 +4019,7 @@ export const PreviewManagerError = Schema.Union([
   PreviewTabNotFoundError,
   PreviewWebContentsNotFoundError,
   PreviewWebviewNotInitializedError,
+  PreviewCircuitBreakerOpenError,
   PreviewOperationError,
   PreviewArtifactPathOutsideDirectoryError,
   PreviewArtifactImageLoadError,

@@ -226,6 +226,7 @@ const makeFaviconWebContents = (options?: {
   readonly fetch?: (url: string, init?: RequestInit) => Promise<Response>;
   readonly id?: number;
   readonly rasterize?: (code: string) => Promise<unknown>;
+  readonly sendCommand?: (method: string) => Promise<unknown>;
   readonly url?: string;
 }) => {
   const sourcePng = makeSourcePng();
@@ -276,7 +277,7 @@ const makeFaviconWebContents = (options?: {
     debugger: {
       isAttached: () => false,
       attach: vi.fn(),
-      sendCommand: vi.fn(async () => undefined),
+      sendCommand: vi.fn(options?.sendCommand ?? (async () => undefined)),
       on: vi.fn(),
       off: debuggerOff,
     },
@@ -673,6 +674,77 @@ describe("PreviewManager", () => {
           webContentsId: null,
           navStatus: { kind: "Loading", url: "https://example.com/" },
         });
+      }),
+    ),
+  );
+
+  effectIt.effect("circuit-breaks a preview after its render process is gone", () =>
+    withManager((manager) =>
+      Effect.gen(function* () {
+        const preview = makeFaviconWebContents();
+        fromId.mockReturnValue(preview.webContents);
+        yield* manager.createTab("tab_render_process_gone");
+        yield* manager.registerWebview("tab_render_process_gone", 42);
+
+        const renderProcessGone = preview.listeners.get("render-process-gone");
+        expect(renderProcessGone).toBeDefined();
+        (renderProcessGone as unknown as (...args: ReadonlyArray<unknown>) => void)(
+          {},
+          { reason: "crashed", exitCode: 139 },
+        );
+        for (let attempt = 0; attempt < 8; attempt += 1) yield* Effect.yieldNow;
+
+        expect(yield* manager.automationStatus("tab_render_process_gone")).toMatchObject({
+          available: false,
+          loading: false,
+        });
+        const navigation = yield* Effect.exit(
+          manager.navigate("tab_render_process_gone", "https://example.com/retry"),
+        );
+        expect(Exit.isFailure(navigation)).toBe(true);
+        if (Exit.isFailure(navigation)) {
+          expect(Option.getOrThrow(Cause.findErrorOption(navigation.cause))).toMatchObject({
+            _tag: "PreviewCircuitBreakerOpenError",
+            reason: "crashed",
+            exitCode: 139,
+          });
+        }
+        expect(preview.loadURL).not.toHaveBeenCalled();
+
+        const replacement = makeFaviconWebContents({ id: 43 });
+        fromId.mockReturnValue(replacement.webContents);
+        yield* manager.closeTab("tab_render_process_gone");
+        yield* manager.createTab("tab_render_process_gone");
+        yield* manager.registerWebview("tab_render_process_gone", 43);
+        yield* manager.navigate("tab_render_process_gone", "https://example.com/recovered");
+        expect(replacement.loadURL).toHaveBeenCalledWith("https://example.com/recovered");
+      }),
+    ),
+  );
+
+  effectIt.effect("circuit-breaks automation after Chromium reports a closed target", () =>
+    withManager((manager) =>
+      Effect.gen(function* () {
+        const preview = makeFaviconWebContents({
+          sendCommand: async () => Promise.reject(new Error("Target closed")),
+        });
+        fromId.mockReturnValue(preview.webContents);
+        yield* manager.createTab("tab_target_closed");
+        yield* manager.registerWebview("tab_target_closed", 42);
+
+        yield* Effect.exit(manager.automationSnapshot("tab_target_closed", {}));
+        const navigation = yield* Effect.exit(
+          manager.navigate("tab_target_closed", "https://example.com/retry"),
+        );
+
+        expect(Exit.isFailure(navigation)).toBe(true);
+        if (Exit.isFailure(navigation)) {
+          expect(Option.getOrThrow(Cause.findErrorOption(navigation.cause))).toMatchObject({
+            _tag: "PreviewCircuitBreakerOpenError",
+            reason: "target-closed",
+          });
+        }
+        expect(preview.loadURL).not.toHaveBeenCalled();
       }),
     ),
   );

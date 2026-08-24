@@ -842,7 +842,17 @@ const generateFiles = Effect.fn("generateFiles")(function* () {
   for (const [name, schema] of Object.entries(aggregateSchemas).toSorted(([left], [right]) =>
     left.localeCompare(right),
   )) {
-    generator.addSchema(name, schema as never);
+    // Codex 0.153.3 emits completion activities in history and live events.
+    // Keep this additive extension until the pinned protocol includes it.
+    const definition = name.endsWith("__SubAgentActivityKind") ? decodeJsonObject(schema) : null;
+    const compatibleSchema =
+      definition !== null &&
+      Array.isArray(definition.enum) &&
+      !definition.enum.includes("completed")
+        ? { ...definition, enum: [...definition.enum, "completed"] }
+        : schema;
+    aggregateSchemas[name] = compatibleSchema;
+    generator.addSchema(name, compatibleSchema as never);
   }
 
   const generatedEntries = new Map<string, string>();

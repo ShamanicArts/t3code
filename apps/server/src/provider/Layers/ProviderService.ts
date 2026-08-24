@@ -406,11 +406,14 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
           provider: canonicalEvent.provider,
           eventType: canonicalEvent.type,
         }).pipe(
-          Effect.andThen(publishRuntimeEvent(canonicalEvent)),
-          // Keep the durable OpenCode/shuvcode resume cursor in sync when a
-          // turn settles so a later restart does not re-open a finished turn.
+          // Provider-initiated turns (including queued Codex work) do not pass
+          // through sendTurn. Persist their live state before subscribers can
+          // react, or steering sees an idle binding and falls back to a start.
+          // Settled turns also refresh durable resume cursors for recovery.
           Effect.andThen(
-            (canonicalEvent.type === "turn.completed" || canonicalEvent.type === "turn.aborted") &&
+            (canonicalEvent.type === "turn.started" ||
+              canonicalEvent.type === "turn.completed" ||
+              canonicalEvent.type === "turn.aborted") &&
               canonicalEvent.threadId !== undefined
               ? Effect.gen(function* () {
                   const adapterOption = yield* registry
@@ -437,6 +440,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
                 })
               : Effect.void,
           ),
+          Effect.andThen(publishRuntimeEvent(canonicalEvent)),
         ),
       ),
     );

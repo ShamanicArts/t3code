@@ -2150,11 +2150,16 @@ export const ServerNotification__CollabAgentTool = Schema.Literals([
   "closeAgent",
 ]).annotate({ identifier: "ServerNotification__CollabAgentTool" });
 
-export type ServerNotification__SubAgentActivityKind = "started" | "interacted" | "interrupted";
+export type ServerNotification__SubAgentActivityKind =
+  | "started"
+  | "interacted"
+  | "interrupted"
+  | "completed";
 export const ServerNotification__SubAgentActivityKind = Schema.Literals([
   "started",
   "interacted",
   "interrupted",
+  "completed",
 ]).annotate({ identifier: "ServerNotification__SubAgentActivityKind" });
 
 export type ServerNotification__WebSearchAction =
@@ -5616,11 +5621,13 @@ export const V2ItemCompletedNotification__CollabAgentTool = Schema.Literals([
 export type V2ItemCompletedNotification__SubAgentActivityKind =
   | "started"
   | "interacted"
-  | "interrupted";
+  | "interrupted"
+  | "completed";
 export const V2ItemCompletedNotification__SubAgentActivityKind = Schema.Literals([
   "started",
   "interacted",
   "interrupted",
+  "completed",
 ]).annotate({ identifier: "V2ItemCompletedNotification__SubAgentActivityKind" });
 
 export type V2ItemCompletedNotification__WebSearchAction =
@@ -6106,11 +6113,13 @@ export const V2ItemStartedNotification__CollabAgentTool = Schema.Literals([
 export type V2ItemStartedNotification__SubAgentActivityKind =
   | "started"
   | "interacted"
-  | "interrupted";
+  | "interrupted"
+  | "completed";
 export const V2ItemStartedNotification__SubAgentActivityKind = Schema.Literals([
   "started",
   "interacted",
   "interrupted",
+  "completed",
 ]).annotate({ identifier: "V2ItemStartedNotification__SubAgentActivityKind" });
 
 export type V2ItemStartedNotification__WebSearchAction =
@@ -7492,11 +7501,16 @@ export const V2ReviewStartResponse__CollabAgentTool = Schema.Literals([
   "closeAgent",
 ]).annotate({ identifier: "V2ReviewStartResponse__CollabAgentTool" });
 
-export type V2ReviewStartResponse__SubAgentActivityKind = "started" | "interacted" | "interrupted";
+export type V2ReviewStartResponse__SubAgentActivityKind =
+  | "started"
+  | "interacted"
+  | "interrupted"
+  | "completed";
 export const V2ReviewStartResponse__SubAgentActivityKind = Schema.Literals([
   "started",
   "interacted",
   "interrupted",
+  "completed",
 ]).annotate({ identifier: "V2ReviewStartResponse__SubAgentActivityKind" });
 
 export type V2ReviewStartResponse__WebSearchAction =
@@ -8036,11 +8050,16 @@ export const V2ThreadForkResponse__CollabAgentTool = Schema.Literals([
   "closeAgent",
 ]).annotate({ identifier: "V2ThreadForkResponse__CollabAgentTool" });
 
-export type V2ThreadForkResponse__SubAgentActivityKind = "started" | "interacted" | "interrupted";
+export type V2ThreadForkResponse__SubAgentActivityKind =
+  | "started"
+  | "interacted"
+  | "interrupted"
+  | "completed";
 export const V2ThreadForkResponse__SubAgentActivityKind = Schema.Literals([
   "started",
   "interacted",
   "interrupted",
+  "completed",
 ]).annotate({ identifier: "V2ThreadForkResponse__SubAgentActivityKind" });
 
 export type V2ThreadForkResponse__WebSearchAction =
@@ -8508,11 +8527,16 @@ export const V2ThreadListResponse__CollabAgentTool = Schema.Literals([
   "closeAgent",
 ]).annotate({ identifier: "V2ThreadListResponse__CollabAgentTool" });
 
-export type V2ThreadListResponse__SubAgentActivityKind = "started" | "interacted" | "interrupted";
+export type V2ThreadListResponse__SubAgentActivityKind =
+  | "started"
+  | "interacted"
+  | "interrupted"
+  | "completed";
 export const V2ThreadListResponse__SubAgentActivityKind = Schema.Literals([
   "started",
   "interacted",
   "interrupted",
+  "completed",
 ]).annotate({ identifier: "V2ThreadListResponse__SubAgentActivityKind" });
 
 export type V2ThreadListResponse__WebSearchAction =
@@ -8926,11 +8950,13 @@ export const V2ThreadMetadataUpdateResponse__CollabAgentTool = Schema.Literals([
 export type V2ThreadMetadataUpdateResponse__SubAgentActivityKind =
   | "started"
   | "interacted"
-  | "interrupted";
+  | "interrupted"
+  | "completed";
 export const V2ThreadMetadataUpdateResponse__SubAgentActivityKind = Schema.Literals([
   "started",
   "interacted",
   "interrupted",
+  "completed",
 ]).annotate({ identifier: "V2ThreadMetadataUpdateResponse__SubAgentActivityKind" });
 
 export type V2ThreadMetadataUpdateResponse__WebSearchAction =
@@ -9292,11 +9318,16 @@ export const V2ThreadReadResponse__CollabAgentTool = Schema.Literals([
   "closeAgent",
 ]).annotate({ identifier: "V2ThreadReadResponse__CollabAgentTool" });
 
-export type V2ThreadReadResponse__SubAgentActivityKind = "started" | "interacted" | "interrupted";
+export type V2ThreadReadResponse__SubAgentActivityKind =
+  | "started"
+  | "interacted"
+  | "interrupted"
+  | "completed";
 export const V2ThreadReadResponse__SubAgentActivityKind = Schema.Literals([
   "started",
   "interacted",
   "interrupted",
+  "completed",
 ]).annotate({ identifier: "V2ThreadReadResponse__SubAgentActivityKind" });
 
 export type V2ThreadReadResponse__WebSearchAction =
@@ -10014,11 +10045,16 @@ export const V2ThreadResumeResponse__CollabAgentTool = Schema.Literals([
   "closeAgent",
 ]).annotate({ identifier: "V2ThreadResumeResponse__CollabAgentTool" });
 
-export type V2ThreadResumeResponse__SubAgentActivityKind = "started" | "interacted" | "interrupted";
+export type V2ThreadResumeResponse__SubAgentActivityKind =
+  | "started"
+  | "interacted"
+  | "interrupted"
+  | "completed";
 export const V2ThreadResumeResponse__SubAgentActivityKind = Schema.Literals([
   "started",
   "interacted",
   "interrupted",
+  "completed",
 ]).annotate({ identifier: "V2ThreadResumeResponse__SubAgentActivityKind" });
 
 export type V2ThreadResumeResponse__WebSearchAction =
@@ -10386,11 +10422,13 @@ export const V2ThreadRollbackResponse__CollabAgentTool = Schema.Literals([
 export type V2ThreadRollbackResponse__SubAgentActivityKind =
   | "started"
   | "interacted"
-  | "interrupted";
+  | "interrupted"
+  | "completed";
 export const V2ThreadRollbackResponse__SubAgentActivityKind = Schema.Literals([
   "started",
   "interacted",
   "interrupted",
+  "completed",
 ]).annotate({ identifier: "V2ThreadRollbackResponse__SubAgentActivityKind" });
 
 export type V2ThreadRollbackResponse__WebSearchAction =
@@ -10885,11 +10923,13 @@ export const V2ThreadStartedNotification__CollabAgentTool = Schema.Literals([
 export type V2ThreadStartedNotification__SubAgentActivityKind =
   | "started"
   | "interacted"
-  | "interrupted";
+  | "interrupted"
+  | "completed";
 export const V2ThreadStartedNotification__SubAgentActivityKind = Schema.Literals([
   "started",
   "interacted",
   "interrupted",
+  "completed",
 ]).annotate({ identifier: "V2ThreadStartedNotification__SubAgentActivityKind" });
 
 export type V2ThreadStartedNotification__WebSearchAction =
@@ -11419,11 +11459,16 @@ export const V2ThreadStartResponse__CollabAgentTool = Schema.Literals([
   "closeAgent",
 ]).annotate({ identifier: "V2ThreadStartResponse__CollabAgentTool" });
 
-export type V2ThreadStartResponse__SubAgentActivityKind = "started" | "interacted" | "interrupted";
+export type V2ThreadStartResponse__SubAgentActivityKind =
+  | "started"
+  | "interacted"
+  | "interrupted"
+  | "completed";
 export const V2ThreadStartResponse__SubAgentActivityKind = Schema.Literals([
   "started",
   "interacted",
   "interrupted",
+  "completed",
 ]).annotate({ identifier: "V2ThreadStartResponse__SubAgentActivityKind" });
 
 export type V2ThreadStartResponse__WebSearchAction =
@@ -11835,11 +11880,13 @@ export const V2ThreadUnarchiveResponse__CollabAgentTool = Schema.Literals([
 export type V2ThreadUnarchiveResponse__SubAgentActivityKind =
   | "started"
   | "interacted"
-  | "interrupted";
+  | "interrupted"
+  | "completed";
 export const V2ThreadUnarchiveResponse__SubAgentActivityKind = Schema.Literals([
   "started",
   "interacted",
   "interrupted",
+  "completed",
 ]).annotate({ identifier: "V2ThreadUnarchiveResponse__SubAgentActivityKind" });
 
 export type V2ThreadUnarchiveResponse__WebSearchAction =
@@ -12191,11 +12238,13 @@ export const V2TurnCompletedNotification__CollabAgentTool = Schema.Literals([
 export type V2TurnCompletedNotification__SubAgentActivityKind =
   | "started"
   | "interacted"
-  | "interrupted";
+  | "interrupted"
+  | "completed";
 export const V2TurnCompletedNotification__SubAgentActivityKind = Schema.Literals([
   "started",
   "interacted",
   "interrupted",
+  "completed",
 ]).annotate({ identifier: "V2TurnCompletedNotification__SubAgentActivityKind" });
 
 export type V2TurnCompletedNotification__WebSearchAction =
@@ -12544,11 +12593,13 @@ export const V2TurnStartedNotification__CollabAgentTool = Schema.Literals([
 export type V2TurnStartedNotification__SubAgentActivityKind =
   | "started"
   | "interacted"
-  | "interrupted";
+  | "interrupted"
+  | "completed";
 export const V2TurnStartedNotification__SubAgentActivityKind = Schema.Literals([
   "started",
   "interacted",
   "interrupted",
+  "completed",
 ]).annotate({ identifier: "V2TurnStartedNotification__SubAgentActivityKind" });
 
 export type V2TurnStartedNotification__WebSearchAction =
@@ -12999,11 +13050,16 @@ export const V2TurnStartResponse__CollabAgentTool = Schema.Literals([
   "closeAgent",
 ]).annotate({ identifier: "V2TurnStartResponse__CollabAgentTool" });
 
-export type V2TurnStartResponse__SubAgentActivityKind = "started" | "interacted" | "interrupted";
+export type V2TurnStartResponse__SubAgentActivityKind =
+  | "started"
+  | "interacted"
+  | "interrupted"
+  | "completed";
 export const V2TurnStartResponse__SubAgentActivityKind = Schema.Literals([
   "started",
   "interacted",
   "interrupted",
+  "completed",
 ]).annotate({ identifier: "V2TurnStartResponse__SubAgentActivityKind" });
 
 export type V2TurnStartResponse__WebSearchAction =

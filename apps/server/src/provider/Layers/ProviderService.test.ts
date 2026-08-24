@@ -1179,6 +1179,101 @@ it.effect(
 );
 
 routing.layer("ProviderServiceLive routing", (it) => {
+  it.effect("clears a completed turn before subscribers send the next idle turn", () =>
+    Effect.gen(function* () {
+      const provider = yield* ProviderService.ProviderService;
+      const threadId = asThreadId("thread-completion-publication");
+      yield* provider.startSession(threadId, {
+        provider: CODEX_DRIVER,
+        providerInstanceId: codexInstanceId,
+        threadId,
+        runtimeMode: "full-access",
+      });
+      const first = yield* provider.sendTurn({ threadId, input: "first" });
+      const consumer = yield* provider.streamEvents.pipe(
+        Stream.filter((event) => event.threadId === threadId && event.type === "turn.completed"),
+        Stream.take(1),
+        Stream.runForEach(() =>
+          provider.sendTurn({ threadId, expectedTurnId: null, input: "next" }),
+        ),
+        Effect.forkChild,
+      );
+      yield* advanceTestClock(50);
+      routing.codex.updateSession(threadId, (session) => ({
+        ...session,
+        status: "ready",
+        activeTurnId: undefined,
+      }));
+      routing.codex.emit({
+        type: "turn.completed",
+        eventId: asEventId("evt-completion-publication"),
+        provider: CODEX_DRIVER,
+        threadId,
+        turnId: first.turnId,
+        createdAt: "2026-01-01T00:00:01.000Z",
+        payload: { state: "completed" },
+      });
+
+      yield* Fiber.join(consumer);
+      assert.equal(routing.codex.readThread.mock.calls.length, 0);
+      assert.equal(routing.codex.sendTurn.mock.calls.length, 2);
+      yield* provider.stopSession({ threadId });
+      routing.codex.sendTurn.mockClear();
+      routing.codex.readThread.mockClear();
+      routing.codex.startSession.mockClear();
+      routing.codex.stopSession.mockClear();
+    }),
+  );
+
+  it.effect("allows steering a provider-initiated turn as soon as its start is published", () =>
+    Effect.gen(function* () {
+      const provider = yield* ProviderService.ProviderService;
+      const threadId = asThreadId("thread-provider-initiated-turn");
+      const turnId = asTurnId("turn-provider-initiated");
+      yield* provider.startSession(threadId, {
+        provider: CODEX_DRIVER,
+        providerInstanceId: codexInstanceId,
+        threadId,
+        runtimeMode: "full-access",
+      });
+
+      const consumer = yield* provider.streamEvents.pipe(
+        Stream.filter((event) => event.threadId === threadId && event.type === "turn.started"),
+        Stream.take(1),
+        Stream.runForEach(() =>
+          provider.steerTurn({
+            threadId,
+            expectedTurnId: turnId,
+            input: "follow up while compacting",
+            clientUserMessageId: MessageId.make("message-provider-initiated-steer"),
+          }),
+        ),
+        Effect.forkChild,
+      );
+      yield* advanceTestClock(50);
+      routing.codex.updateSession(threadId, (session) => ({
+        ...session,
+        status: "running",
+        activeTurnId: turnId,
+      }));
+      routing.codex.emit({
+        type: "turn.started",
+        eventId: asEventId("evt-provider-initiated-turn"),
+        provider: CODEX_DRIVER,
+        threadId,
+        turnId,
+        createdAt: "2026-01-01T00:00:01.000Z",
+      });
+
+      yield* Fiber.join(consumer);
+      assert.equal(routing.codex.steerTurn.mock.calls.at(-1)?.[0].expectedTurnId, turnId);
+      yield* provider.stopSession({ threadId });
+      routing.codex.steerTurn.mockClear();
+      routing.codex.startSession.mockClear();
+      routing.codex.stopSession.mockClear();
+    }),
+  );
+
   it.effect("routes manual compaction to an idle capable provider session", () =>
     Effect.gen(function* () {
       const provider = yield* ProviderService.ProviderService;
