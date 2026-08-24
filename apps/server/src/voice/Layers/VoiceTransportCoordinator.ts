@@ -598,6 +598,7 @@ export const makeVoiceTransportCoordinator = Effect.fn("VoiceTransportCoordinato
             runtimeInstanceId,
             generation: startInput.generation,
             realtimeSessionId,
+            realtimeModel: input.realtimeModel,
             transportType: startTransportKind.type,
             ...(startTransportKind.type === "webrtc"
               ? { offerSdp: startTransportKind.offerSdp }
@@ -908,6 +909,7 @@ export const makeVoiceTransportCoordinator = Effect.fn("VoiceTransportCoordinato
               runtimeInstanceId,
               generation: startInput.generation,
               realtimeSessionId,
+              realtimeModel: input.realtimeModel,
               transportType: startTransportKind.type,
               ...(startTransportKind.type === "webrtc"
                 ? { offerSdp: startTransportKind.offerSdp }

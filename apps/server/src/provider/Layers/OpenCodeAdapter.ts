@@ -933,6 +933,18 @@ export function makeOpenCodeAdapter(
       });
 
       switch (event.type) {
+        case "session.compacted": {
+          yield* emit({
+            ...(yield* buildEventBase({
+              threadId: context.session.threadId,
+              raw: event,
+            })),
+            type: "thread.state.changed",
+            payload: { state: "compacted", detail: event },
+          });
+          break;
+        }
+
         case "session.updated": {
           const title = openCodeEventSessionTitle(event);
           if (title) {
@@ -1899,6 +1911,28 @@ export function makeOpenCodeAdapter(
       },
     );
 
+    const compactThread: OpenCodeAdapterShape["compactThread"] = Effect.fn("compactThread")(
+      function* ({ threadId }) {
+        const context = yield* ensureSessionContext(sessions, threadId);
+        const model = parseOpenCodeModelSlug(context.session.model);
+        if (model === null) {
+          return yield* new ProviderAdapterValidationError({
+            provider: PROVIDER,
+            operation: "compactThread",
+            issue: "OpenCode compaction requires a current model in 'provider/model' format.",
+          });
+        }
+        yield* runOpenCodeSdk("session.summarize", () =>
+          context.client.session.summarize({
+            sessionID: context.openCodeSessionId,
+            providerID: model.providerID,
+            modelID: model.modelID,
+            auto: false,
+          }),
+        ).pipe(Effect.mapError(toRequestError));
+      },
+    );
+
     const respondToRequest: OpenCodeAdapterShape["respondToRequest"] = Effect.fn(
       "respondToRequest",
     )(function* (threadId, requestId, decision) {
@@ -2048,6 +2082,7 @@ export function makeOpenCodeAdapter(
       provider: PROVIDER,
       capabilities: {
         sessionModelSwitch: "in-session",
+        manualCompaction: true,
         hasDurableSessionRecovery: (resumeCursor) => {
           const parsed = parseOpenCodeResume(resumeCursor);
           if (parsed?.durableSessionRecovery !== undefined) {
@@ -2065,6 +2100,7 @@ export function makeOpenCodeAdapter(
       startSession,
       sendTurn,
       interruptTurn,
+      compactThread,
       respondToRequest,
       respondToUserInput,
       stopSession,

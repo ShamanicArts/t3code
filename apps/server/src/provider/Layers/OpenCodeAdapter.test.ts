@@ -1659,6 +1659,40 @@ it.layer(OpenCodeAdapterTestLayer)("OpenCodeAdapterLive", (it) => {
     }),
   );
 
+  it.effect("projects OpenCode compaction completion", () =>
+    Effect.gen(function* () {
+      const adapter = yield* OpenCodeAdapter;
+      const threadId = asThreadId("thread-opencode-compacted");
+      runtimeMock.state.subscribedEvents = [
+        {
+          type: "session.compacted",
+          properties: { sessionID: "http://127.0.0.1:9999/session" },
+        },
+      ];
+      const compactedEvent = yield* adapter.streamEvents.pipe(
+        Stream.filter(
+          (event) => event.threadId === threadId && event.type === "thread.state.changed",
+        ),
+        Stream.take(1),
+        Stream.runCollect,
+        Effect.forkChild,
+      );
+
+      yield* adapter.startSession({
+        provider: ProviderDriverKind.make("opencode"),
+        threadId,
+        runtimeMode: "full-access",
+      });
+
+      const events = Array.from(yield* Fiber.join(compactedEvent).pipe(Effect.timeout("1 second")));
+      const event = events[0];
+      NodeAssert.equal(event?.type, "thread.state.changed");
+      if (event?.type === "thread.state.changed") {
+        NodeAssert.equal(event.payload.state, "compacted");
+      }
+    }),
+  );
+
   it.effect("passes the thread title to session.create when provided", () =>
     Effect.gen(function* () {
       const adapter = yield* OpenCodeAdapter;
